@@ -1,41 +1,52 @@
-import seaborn as sns
 import numpy as np
-from train import X_train, Y_non_violent, Y_violent
+import seaborn as sns
 import matplotlib.pyplot as plt
-import typing
 from os import path
-#We start with covariance since it is trivial to analyze
-def covariance(x, y):
+from train import X_train, Y_violent
+
+# --- Utility Functions ---
+
+def covariance(x: np.ndarray, y: np.ndarray) -> float:
+    """Compute covariance between two arrays."""
     x = np.asarray(x)
     y = np.asarray(y)
     if x.shape != y.shape:
-        raise ValueError(f"Shapes do not match x.shape:{x.shape}, y.shape:{y.shape}")
+        raise ValueError(f"Shapes do not match: x.shape={x.shape}, y.shape={y.shape}")
     return np.mean((x - x.mean()) * (y - y.mean()))
 
-#Read columns from columns.txt for easy callback.
-with open("./proj1files/columns.txt",'r') as f:
-    col_names=f.read().splitlines()
+def load_column_names(filepath: str) -> list[str]:
+    """Load column names from a text file."""
+    with open(filepath, 'r') as f:
+        return f.read().splitlines()
 
-#Avoid h(x)=1, start from real features
-cov_violent=[]
-for col in range(1,78):
-    cov_violent.append([covariance(X_train[:,col],Y_violent),col])
+def compute_top_covariances(X: np.ndarray, y: np.ndarray, start_col: int, end_col: int, top_n: int = 5) -> list[tuple[float, int]]:
+    """Compute and return top N features with highest absolute covariance."""
+    cov_list = [(covariance(X[:, col], y), col) for col in range(start_col, end_col)]
+    cov_list.sort(key=lambda x: abs(x[0]), reverse=True)
+    return cov_list[:top_n]
 
-cov_violent.sort(key=lambda x: abs(x[0]),reverse=1)
-top_five=cov_violent[:5]
-
-#Top five features.
-for i in range(0,5):  
-    print(f"feature:{col_names[cov_violent[i][1]]} | cov: {cov_violent[i][0]}")
-
-for cov, idx in top_five:
+def plot_and_save_feature(X: np.ndarray, y: np.ndarray, feature_idx: int, feature_name: str, cov_value: float, output_dir: str = "./media"):
+    """Generate and save a scatter plot for a given feature."""
     plt.figure(figsize=(6, 4))
-    sns.scatterplot(x=X_train[:, idx+1], y=Y_violent)
-    plt.xlabel(f"Feature {col_names[idx]}")
+    sns.scatterplot(x=X[:, feature_idx], y=y)
+    plt.xlabel(f"Feature: {feature_name}")
     plt.ylabel("Y_violent")
-    plt.title(f"Scatter Plot: Feature vs Y_violent\nCovariance: {cov:.2f}")
+    plt.title(f"Scatter Plot\nCovariance: {cov_value:.2f}")
     plt.tight_layout()
-    if(not path.exists(f"./media/plot{idx}.png")):
-        plt.savefig(f"./media/plot{idx}.png")
+
+    filename = f"{output_dir}/plot{feature_idx}.png"
+    if not path.exists(filename):
+        plt.savefig(filename)
     else:
-        print(f"plot{idx} already there")
+        print(f"{filename} already exists.")
+
+# --- Main Execution ---
+
+if __name__ == "__main__":
+    col_names = load_column_names("./proj1files/columns.txt")
+    top_features = compute_top_covariances(X_train, Y_violent, start_col=1, end_col=78, top_n=5)
+
+    for cov, idx in top_features:
+        feature_name = col_names[idx]
+        print(f"Feature: {feature_name} | Covariance: {cov:.2f}")
+        plot_and_save_feature(X_train, Y_violent, idx, feature_name, cov)
