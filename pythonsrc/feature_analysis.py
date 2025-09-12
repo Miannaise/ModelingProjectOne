@@ -3,7 +3,7 @@ import numpy as np
 from train import X_train, Y_non_violent, Y_violent
 import matplotlib.pyplot as plt
 import typing
-
+from os import path
 #We start with covariance since it is trivial to analyze
 def covariance(x, y):
     x = np.asarray(x)
@@ -17,16 +17,16 @@ with open("./proj1files/columns.txt",'r') as f:
     col_names=f.read().splitlines()
 
 #Avoid h(x)=1, start from real features
-cov_arr=[]
+cov_violent=[]
 for col in range(1,78):
-    cov_arr.append([covariance(X_train[:,col],Y_violent),col])
+    cov_violent.append([covariance(X_train[:,col],Y_violent),col])
 
-cov_arr.sort(key=lambda x: abs(x[0]),reverse=1)
-top_five=cov_arr[:5]
+cov_violent.sort(key=lambda x: abs(x[0]),reverse=1)
+top_five=cov_violent[:5]
 
 #Top five features.
 for i in range(0,5):  
-    print(f"feature:{col_names[cov_arr[i][1]]} | cov: {cov_arr[i][0]}")
+    print(f"feature:{col_names[cov_violent[i][1]]} | cov: {cov_violent[i][0]}")
 
 for cov, idx in top_five:
     plt.figure(figsize=(6, 4))
@@ -35,4 +35,7 @@ for cov, idx in top_five:
     plt.ylabel("Y_violent")
     plt.title(f"Scatter Plot: Feature vs Y_violent\nCovariance: {cov:.2f}")
     plt.tight_layout()
-    plt.savefig(f"./media/plot{idx}.png")
+    if(not path.exists(f"./media/plot{idx}.png")):
+        plt.savefig(f"./media/plot{idx}.png")
+    else:
+        print(f"plot{idx} already there")
