@@ -2,10 +2,9 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from os import path
-from train import X_train, Y_violent
+from pythonsrc.train import X_train, Y_violent,Y_non_violent
 
-# --- Utility Functions ---
-
+#Utility
 def covariance(x: np.ndarray, y: np.ndarray) -> float:
     """Compute covariance between two arrays."""
     x = np.asarray(x)
@@ -44,9 +43,12 @@ def plot_and_save_feature(X: np.ndarray, y: np.ndarray, feature_idx: int, featur
 
 if __name__ == "__main__":
     col_names = load_column_names("./proj1files/columns.txt")
-    top_features = compute_top_covariances(X_train, Y_violent, start_col=1, end_col=78, top_n=5)
-
+    top_features = compute_top_covariances(X_train, Y_violent, start_col=0, end_col=78, top_n=5)
     for cov, idx in top_features:
         feature_name = col_names[idx]
         print(f"Feature: {feature_name} | Covariance: {cov:.2f}")
-        plot_and_save_feature(X_train, Y_violent, idx, feature_name, cov)
+    top_features = compute_top_covariances(X_train, Y_non_violent, start_col=0, end_col=78, top_n=5)
+    for cov, idx in top_features:
+        feature_name = col_names[idx]
+        print(f"Feature: {feature_name} | Covariance: {cov:.2f}")
+

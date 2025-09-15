@@ -1,3 +1,5 @@
 /.venv
 *.pdf
 /pythonsrc/__pycache__
+/media
+/pythonsrc/transform_analysis.py
