@@ -31,9 +31,9 @@ betanonviolent, *_ = np.linalg.lstsq(X_train, Y_non_violent, rcond=None) # shape
 # Violent crime MAPE
 y_pred_violent = X_train @ betaviolent
 MAPE_violent = 100 * np.sum(np.abs(y_pred_violent - Y_violent) / Y_violent) / len(Y_violent)
-#print(f"MAPE for the violent crime rate training set is {MAPE_violent:.1f}")
+print(f"MAPE for the violent crime rate training set is {MAPE_violent:.1f}")
 
 # Nonviolent crime MAPE
 y_pred_nonviolent = X_train @ betanonviolent
 MAPE_nonviolent = 100 * np.sum(np.abs(y_pred_nonviolent - Y_non_violent) / Y_non_violent) / len(Y_non_violent)
-#print(f"MAPE for the nonviolent crime rate training set is {MAPE_nonviolent:.1f}")
+print(f"MAPE for the nonviolent crime rate training set is {MAPE_nonviolent:.1f}")

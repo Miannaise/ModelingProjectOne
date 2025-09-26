@@ -2,7 +2,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from os import path, makedirs
-from pythonsrc.train import X_train, Y_violent, Y_non_violent
+from train import X_train, Y_violent, Y_non_violent
 
 # --- Utility Functions ---
 
@@ -37,13 +37,13 @@ if __name__ == "__main__":
         fig.suptitle(f"Feature: {feature_name}", fontsize=14)
 
         # Plot X_train vs Y_violent
-        sns.scatterplot(x=feature_data, y=Y_violent, ax=axes[0], color='red')
+        sns.scatterplot(x=feature_data, y=Y_violent, ax=axes[0], color='red',s=3)
         axes[0].set_title("Violent")
         axes[0].set_xlabel(feature_name)
         axes[0].set_ylabel("Y_violent")
 
         # Plot X_train vs Y_non_violent
-        sns.scatterplot(x=feature_data, y=Y_non_violent, ax=axes[1], color='blue')
+        sns.scatterplot(x=feature_data, y=Y_non_violent, ax=axes[1], color='blue',s=3)
         axes[1].set_title("Non-Violent")
         axes[1].set_xlabel(feature_name)
         axes[1].set_ylabel("Y_non_violent")
