@@ -1,0 +1,160 @@
+(800, 78)
+(800,)
+Shape after dropping highly correlated features: (800, 49)
+Final shape after dropping high kurtosis features: (800, 35)
+
+
+Naiive Regression Results:
+Violent Crime MAPE (direct) naive: 76.26
+Violent Crime MAPE (log fit on y) naive: 56.18
+Non Violent Crime MAPE (direct) naive: 32.64
+Non Violent Crime MAPE (log fit on y) naive: 29.56
+Violent Crime Test MAPE (direct) naive: 102.97
+Violent Crime Test MAPE (log fit on y) naive: 77.88
+Non Violent Crime Test MAPE (direct) naive: 42.33
+Non Violent Crime Test MAPE (log fit on y) naive: 38.81
+
+
+Ridge Regression Results:
+Violent Crime MAPE (direct) ridge: 75.82
+Violent Crime MAPE (log fit on y) ridge: 56.41
+Non Violent Crime MAPE (direct) ridge: 32.54
+Non Violent Crime MAPE (log fit on y) ridge: 29.59
+Violent Crime Test MAPE (direct) ridge: 101.14
+Violent Crime Test MAPE (log fit on y) ridge: 76.26
+Non Violent Crime Test MAPE (direct) ridge: 42.62
+Non Violent Crime Test MAPE (log fit on y) ridge: 38.80
+
+Lasso Regression Results (from scratch):
+Violent Crime MAPE (direct) lasso: 76.26
+Violent Crime MAPE (log fit on y) lasso: 56.19
+Non Violent Crime MAPE (direct) lasso: 32.64
+Non Violent Crime MAPE (log fit on y) lasso: 29.56
+Violent Crime Test MAPE (direct) lasso: 102.97
+Violent Crime Test MAPE (log fit on y) lasso: 77.80
+Non Violent Crime Test MAPE (direct) lasso: 42.33
+Non Violent Crime Test MAPE (log fit on y) lasso: 38.82
+
+LAD (Robust) Regression Results:
+Violent Crime MAPE (direct) lad: 73.94
+Violent Crime MAPE (log fit on y) lad: 56.33
+Non Violent Crime MAPE (direct) lad: 32.14
+Non Violent Crime MAPE (log fit on y) lad: 29.31
+Violent Crime Test MAPE (direct) lad: 101.27
+Violent Crime Test MAPE (log fit on y) lad: 76.56
+Non Violent Crime Test MAPE (direct) lad: 42.96
+Non Violent Crime Test MAPE (log fit on y) lad: 38.82
+
+3rd Degree Polynomial Regression Results (manual, no scikit-learn):
+Violent Crime MAPE (direct train): 76.58
+Violent Crime MAPE (direct test): 108.66
+Violent Crime MAPE (log fit train): 48.48
+Violent Crime MAPE (log fit test): 73.41
+Non Violent Crime MAPE (direct train): 29.24
+Non Violent Crime MAPE (direct test): 41.82
+Non Violent Crime MAPE (log fit train): 26.06
+Non Violent Crime MAPE (log fit test): 38.67
+
+Lasso on 3rd Degree Polynomial Features (manual):
+Violent Crime MAPE (direct train): 76.60
+Violent Crime MAPE (direct test): 108.67
+Violent Crime MAPE (log fit train): 48.48
+Violent Crime MAPE (log fit test): 73.47
+Non Violent Crime MAPE (direct train): 29.24
+Non Violent Crime MAPE (direct test): 41.77
+Non Violent Crime MAPE (log fit train): 26.07
+Non Violent Crime MAPE (log fit test): 38.68
+
+Stepwise Linear Regression (Forward Selection) Results:
+Violent Crime: selected features = [0, 26, 21, 3, 29, 18, 8, 6, 11, 12]
+Violent Crime MAPE (train): 78.63
+Violent Crime MAPE (test): 98.79
+Non Violent Crime: selected features = [0, 24, 34, 21, 18, 4, 15, 35, 6, 32]
+Non Violent Crime MAPE (train): 32.48
+Non Violent Crime MAPE (test): 44.20
+
+Stepwise Linear Regression (Forward Selection, log fit) Results:
+Violent Crime (log fit): selected features = [0, 24, 29, 21, 3, 31, 6, 20, 9, 5]
+Violent Crime MAPE (log fit train): 58.62
+Violent Crime MAPE (log fit test): 72.75
+Non Violent Crime (log fit): selected features = [0, 24, 34, 21, 30, 4, 18, 25, 6, 13]
+Non Violent Crime MAPE (log fit train): 30.09
+Non Violent Crime MAPE (log fit test): 40.21
+
+LAD on 3rd Degree Polynomial Features (manual):
+Violent Crime MAPE (direct train): 68.06
+Violent Crime MAPE (direct test): 100.50
+Violent Crime MAPE (log fit train): 48.43
+Violent Crime MAPE (log fit test): 72.39
+Non Violent Crime MAPE (direct train): 28.24
+Non Violent Crime MAPE (direct test): 43.45
+Non Violent Crime MAPE (log fit train): 25.42
+Non Violent Crime MAPE (log fit test): 40.18
+
+LAD with Ridge Regularization on 3rd Degree Polynomial Features (manual):
+Violent Crime MAPE (direct train): 117.49
+Violent Crime MAPE (direct test): 131.68
+Violent Crime MAPE (log fit train): 53.12
+Violent Crime MAPE (log fit test): 94.43
+Non Violent Crime MAPE (direct train): 83.60
+Non Violent Crime MAPE (direct test): 87.66
+Non Violent Crime MAPE (log fit train): 25.42
+Non Violent Crime MAPE (log fit test): 40.32
+
+LAD with Ridge Regularization on Linear Features (manual):
+Violent Crime MAPE (direct train): 85.03
+Violent Crime MAPE (direct test): 94.17
+Violent Crime MAPE (log fit train): 56.33
+Violent Crime MAPE (log fit test): 76.53
+Non Violent Crime MAPE (direct train): 47.04
+Non Violent Crime MAPE (direct test): 50.46
+Non Violent Crime MAPE (log fit train): 29.33
+Non Violent Crime MAPE (log fit test): 38.84
+
+Response Matrix Linear Regression Results:
+Violent Crime MAPE (train): 70.87
+Violent Crime MAPE (test): 117.10
+Non Violent Crime MAPE (train): 27.11
+Non Violent Crime MAPE (test): 48.61
+
+Response Matrix Log-Transformed Linear Regression Results:
+Violent Crime MAPE (log fit train): 46.10
+Violent Crime MAPE (log fit test): 85.77
+Non Violent Crime MAPE (log fit train): 24.26
+Non Violent Crime MAPE (log fit test): 41.61
+
+Response Matrix LAD Regression Results:
+Violent Crime MAPE (train): 62.52
+Violent Crime MAPE (test): 110.34
+Non Violent Crime MAPE (train): 46.54
+Non Violent Crime MAPE (test): 76.85
+
+Response Matrix LAD Log-Transformed Regression Results:
+Violent Crime MAPE (log fit train): 44.92
+Violent Crime MAPE (log fit test): 95.34
+Non Violent Crime MAPE (log fit train): 23.61
+Non Violent Crime MAPE (log fit test): 44.95
+
+Response Matrix Ridge Regression Results:
+Violent Crime MAPE (train): 70.87
+Violent Crime MAPE (test): 117.10
+Non Violent Crime MAPE (train): 27.11
+Non Violent Crime MAPE (test): 48.61
+
+Response Matrix Ridge Log-Transformed Regression Results:
+Violent Crime MAPE (log fit train): 46.10
+Violent Crime MAPE (log fit test): 85.77
+Non Violent Crime MAPE (log fit train): 24.26
+Non Violent Crime MAPE (log fit test): 41.61
+
+Response Matrix Lasso Regression Results:
+Violent Crime MAPE (train): 70.83
+Violent Crime MAPE (test): 114.80
+Non Violent Crime MAPE (train): 27.11
+Non Violent Crime MAPE (test): 48.16
+
+Response Matrix Lasso Log-Transformed Regression Results:
+Violent Crime MAPE (log fit train): 46.56
+Violent Crime MAPE (log fit test): 77.29
+Non Violent Crime MAPE (log fit train): 24.82
+Non Violent Crime MAPE (log fit test): 40.31

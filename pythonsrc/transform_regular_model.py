@@ -186,7 +186,7 @@ def covar_heatmap(X):
     plt.tight_layout()
     plt.show()
 
-#covar_heatmap(covar)
+covar_heatmap(covar)
 def correlation_heatmap(X):
     plt.figure(figsize=(10, 8))
     corr_matrix = np.corrcoef(X, rowvar=False)
@@ -197,7 +197,7 @@ def correlation_heatmap(X):
     plt.ylabel('Feature Index')
     plt.tight_layout()
     plt.show()
-#correlation_heatmap(np.corrcoef(normalize_features,rowvar=False))
+correlation_heatmap(np.corrcoef(normalize_features,rowvar=False))
 
 #Implement Dropout for highly correlated features
 def dropout_highly_correlated_features(X, threshold=0.9):
@@ -932,7 +932,7 @@ print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_lad:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_lad:.2f}")
 
 #Ridge on response matrix
-lmbda_response_ridge = 1e-4  # Increased regularization for stability
+lmbda_response_ridge = 1e-5
 
 def ridge_regression_safe(X, y, lmbda):
     n_features = X.shape[1]
@@ -981,7 +981,7 @@ print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_ridge:.2f}
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_ridge:.2f}")
 
 #we now try lasso on response matrix
-lmbda_response_lasso = 1e2  # You can tune this value
+lmbda_response_lasso = 1e-5  # You can tune this value
 # Violent
 beta_hat_v_response_lasso = lasso_coordinate_descent(X_response_v, Y_violent, lmbda_response_lasso)
 Y_violent_pred_response_lasso = X_response_v @ beta_hat_v_response_lasso
@@ -1017,3 +1017,89 @@ print(f"Violent Crime MAPE (log fit train): {mape_v_exp_response_lasso:.2f}")
 print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_response_lasso:.2f}")
 print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_lasso:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_lasso:.2f}")
+
+
+#We try SVD with ridge LAD regularization on all features
+lmbda_svd=1e-5
+U, S, VT = np.linalg.svd(X_final, full_matrices=False)
+# Choose number of components
+k = 20  # You can tune this value
+U_k = U[:, :k]
+S_k = np.diag(S[:k])
+V_k = VT[:k, :]
+X_svd = U_k @ S_k
+X_test_svd = (X_test_final) @ V_k.T
+# Violent
+beta_hat_v_svd_lad_ridge = lad_ridge_regression(X_svd, Y_violent, lmbda=lmbda_svd)
+Y_violent_pred_svd_lad_ridge = X_svd @ beta_hat_v_svd_lad_ridge
+mape_v_svd_lad_ridge = mape(Y_violent, Y_violent_pred_svd_lad_ridge)
+Y_violent_test_pred_svd_lad_ridge = X_test_svd @ beta_hat_v_svd_lad_ridge
+mape_v_test_svd_lad_ridge = mape(Y_violent_test, Y_violent_test_pred_svd_lad_ridge)
+# Non-violent
+beta_hat_nv_svd_lad_ridge = lad_ridge_regression(X_svd, Y_non_violent, lmbda=lmbda_svd)
+Y_non_violent_pred_svd_lad_ridge = X_svd @ beta_hat_nv_svd_lad_ridge
+mape_nv_svd_lad_ridge = mape(Y_non_violent, Y_non_violent_pred_svd_lad_ridge)
+Y_non_violent_test_pred_svd_lad_ridge = X_test_svd @ beta_hat_nv_svd_lad_ridge
+mape_nv_test_svd_lad_ridge = mape(Y_non_violent_test, Y_non_violent_test_pred_svd_lad_ridge)
+print("\nSVD with LAD Ridge Regularization Results:")
+print(f"Violent Crime MAPE (train): {mape_v_svd_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_svd_lad_ridge:.2f}")
+# Log fits with SVD and LAD Ridge
+# Violent log fit
+beta_hat_v_log_svd_lad_ridge = lad_ridge_regression(X_svd, Y_violent_log_naive, lmbda=lmbda_svd)
+Y_violent_exp_pred_svd_lad_ridge = np.exp(X_svd @ beta_hat_v_log_svd_lad_ridge)
+mape_v_exp_svd_lad_ridge = mape(Y_violent, Y_violent_exp_pred_svd_lad_ridge)
+Y_violent_test_exp_pred_svd_lad_ridge = np.exp(X_test_svd @ beta_hat_v_log_svd_lad_ridge)
+mape_v_test_exp_svd_lad_ridge = mape(Y_violent_test, Y_violent_test_exp_pred_svd_lad_ridge)
+# Non-violent log fit
+beta_hat_nv_log_svd_lad_ridge = lad_ridge_regression(X_svd, Y_non_violent_log_naive, lmbda=lmbda_svd)
+Y_non_violent_exp_pred_svd_lad_ridge = np.exp(X_svd @ beta_hat_nv_log_svd_lad_ridge)
+mape_nv_exp_svd_lad_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_svd_lad_ridge)
+Y_non_violent_test_exp_pred_svd_lad_ridge = np.exp(X_test_svd @ beta_hat_nv_log_svd_lad_ridge)
+mape_nv_test_exp_svd_lad_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_svd_lad_ridge)
+print("\nSVD with LAD Ridge Log-Transformed Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_svd_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_svd_lad_ridge:.2f}")
+
+
+#linear regression svd with ridge
+lmbda_svd_ridge=1e-5
+# Violent
+beta_hat_v_svd_ridge = ridge_regression_safe(X_svd, Y_violent, lmbda_svd_ridge)
+Y_violent_pred_svd_ridge = X_svd @ beta_hat_v_svd_ridge
+mape_v_svd_ridge = mape(Y_violent, Y_violent_pred_svd_ridge)
+Y_violent_test_pred_svd_ridge = X_test_svd @ beta_hat_v_svd_ridge
+mape_v_test_svd_ridge = mape(Y_violent_test, Y_violent_test_pred_svd_ridge)
+# Non-violent
+beta_hat_nv_svd_ridge = ridge_regression_safe(X_svd, Y_non_violent, lmbda_svd_ridge)
+Y_non_violent_pred_svd_ridge = X_svd @ beta_hat_nv_svd_ridge
+mape_nv_svd_ridge = mape(Y_non_violent, Y_non_violent_pred_svd_ridge)
+Y_non_violent_test_pred_svd_ridge = X_test_svd @ beta_hat_nv_svd_ridge
+mape_nv_test_svd_ridge = mape(Y_non_violent_test, Y_non_violent_test_pred_svd_ridge)
+print("\nSVD with Ridge Regression Results:")
+print(f"Violent Crime MAPE (train): {mape_v_svd_ridge:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_svd_ridge:.2f}")
+# Log fits with SVD and Ridge
+# Violent log fit
+beta_hat_v_log_svd_ridge = ridge_regression_safe(X_svd, Y_violent_log_naive, lmbda_svd_ridge)
+Y_violent_exp_pred_svd_ridge = np.exp(X_svd @ beta_hat_v_log_svd_ridge)
+mape_v_exp_svd_ridge = mape(Y_violent, Y_violent_exp_pred_svd_ridge)
+Y_violent_test_exp_pred_svd_ridge = np.exp(X_test_svd @ beta_hat_v_log_svd_ridge)
+mape_v_test_exp_svd_ridge = mape(Y_violent_test, Y_violent_test_exp_pred_svd_ridge)
+# Non-violent log fit
+beta_hat_nv_log_svd_ridge = ridge_regression_safe(X_svd, Y_non_violent_log_naive, lmbda_svd_ridge)
+Y_non_violent_exp_pred_svd_ridge = np.exp(X_svd @ beta_hat_nv_log_svd_ridge)
+mape_nv_exp_svd_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_svd_ridge)
+Y_non_violent_test_exp_pred_svd_ridge = np.exp(X_test_svd @ beta_hat_nv_log_svd_ridge)
+mape_nv_test_exp_svd_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_svd_ridge)
+print("\nSVD with Ridge Log-Transformed Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_svd_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_svd_ridge:.2f}")

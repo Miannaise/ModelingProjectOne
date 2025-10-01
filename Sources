@@ -1,8 +1,9 @@
-MIT deep learning book
-Riley Hobson
-Sci-Kit documentation 
+Goodfellow, Ian, Yoshua Bengio, and Aaron Courville. Deep Learning. MIT Press, 2016. http://www.deeplearningbook.org
+Riley, K. F., M. P. Hobson, and S. J. Bence. Mathematical Methods for Physics and Engineering: A Comprehensive Guide. 3rd ed. Cambridge: Cambridge University Press, 2006.
 https://www.itl.nist.gov/div898/handbook/eda/section3/eda35b.htm
+https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html
 https://scikit-learn.org/stable/modules/feature_selection.html
 https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.QuantileTransformer.html
 https://arxiv.org/abs/2106.09685
 https://developers.google.com/machine-learning/crash-course/overfitting/regularization
+https://www.mathworks.com/help/stats/lasso.html
