@@ -5,6 +5,148 @@ import seaborn as sns
 from os import makedirs, path
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
+
+def r_squared(y_true, y_pred):
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - ss_res / ss_tot
+
+def fit_linear(x, y):
+    A = np.vstack([x, np.ones_like(x)]).T
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    return lambda x_: coeffs[0] * x_ + coeffs[1]
+
+# def fit_exponential(x, y):
+#     y = np.clip(y, 1e-5, None)
+#     log_y = np.log(y)
+#     A = np.vstack([x, np.ones_like(x)]).T
+#     coeffs = np.linalg.lstsq(A, log_y, rcond=None)[0]
+#     return lambda x_: np.exp(coeffs[0] * x_ + coeffs[1])
+
+def fit_reciprocal(x, y):
+    x = np.clip(x, 1e-5, None)
+    A = np.vstack([1 / x, np.ones_like(x)]).T
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    return lambda x_: coeffs[0] / np.clip(x_, 1e-5, None) + coeffs[1]
+
+def fit_logarithmic(x, y):
+    x = np.clip(x, 1e-5, None)
+    A = np.vstack([np.log(x), np.ones_like(x)]).T
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    return lambda x_: coeffs[0] * np.log(np.clip(x_, 1e-5, None)) + coeffs[1]
+
+def fit_polynomial(x, y, degree):
+    A = np.vstack([x**d for d in range(degree, -1, -1)]).T
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    return lambda x_: sum(c * x_**d for c, d in zip(coeffs, range(degree, -1, -1)))
+
+
+def evaluate_fits(X_train, y, degree=4):
+    results = []
+
+    for i in range(X_train.shape[1]):
+        x = X_train[:, i]
+
+        # # Skip constant or invalid features
+        # if np.all(x == x[0]):
+        #     continue
+
+        # Try each fit
+       
+        # Linear
+        model = fit_linear(x, y)
+        r2 = r_squared(y, model(x))
+        results.append((i, "linear", r2))
+
+        # # Exponential
+        # model = fit_exponential(x, y)
+        # r2 = r_squared(y, model(x))
+        # results.append((i, "exponential", r2))
+
+        # Reciprocal
+        model = fit_reciprocal(x, y)
+        r2 = r_squared(y, model(x))
+        results.append((i, "reciprocal", r2))
+
+        # Logarithmic
+        model = fit_logarithmic(x, y)
+        r2 = r_squared(y, model(x))
+        results.append((i, "logarithmic", r2))
+
+        # Polynomial
+        model = fit_polynomial(x, y, degree)
+        r2 = r_squared(y, model(x))
+        results.append((i, f"polynomial_deg{degree}", r2))
+        
+
+    # Sort by R² descending
+    results.sort(key=lambda x: x[2], reverse=True)
+    return results
+
+def get_best_fit_per_feature(results):
+    best_fits = {}
+
+    for feature_idx, fit_type, r2 in results:
+        # If feature not seen yet or current R² is better, update
+        if feature_idx not in best_fits or r2 > best_fits[feature_idx][1]:
+            best_fits[feature_idx] = (fit_type, r2)
+
+    # Convert to sorted list by R² descending
+    sorted_best = sorted(
+        [(idx, fit_type, r2) for idx, (fit_type, r2) in best_fits.items()],
+        key=lambda x: x[2],
+        reverse=True
+    )
+    return sorted_best
+# Map fit name -> fitter function (your functions return a predictor lambda)
+FITTERS = {
+    "linear":       fit_linear,
+    # "exponential":  fit_exponential,
+    "reciprocal":   fit_reciprocal,
+    "logarithmic":  fit_logarithmic,
+    "polynomial_deg4":fit_polynomial
+}
+
+
+def transform_feature(x, fit_type):
+    x = np.asarray(x)
+    if fit_type == "linear":
+        return x
+    # elif fit_type == "exponential":
+        return x  # Exponential fit is applied to y, so x remains unchanged
+    elif fit_type == "reciprocal":
+        return 1.0 / np.clip(x, 1e-5, None)
+    elif fit_type == "logarithmic":
+        return np.log(np.clip(x, 1e-5, None))
+    elif fit_type.startswith("polynomial_deg"):
+        deg = int(fit_type.replace("polynomial_deg", ""))
+        return np.column_stack([x**d for d in range(deg, 0, -1)])
+    else:
+        raise ValueError(f"Unknown fit type: {fit_type}")
+
+def build_transformed_matrix(X, best_fits):
+    n_samples, n_features = X.shape
+    transformed_columns = []
+
+    for j in range(n_features):
+        xj = X[:, j]
+        if not np.isfinite(xj).all() or np.allclose(xj, xj[0]):
+            # If invalid or constant, use zeros
+            transformed_columns.append(np.zeros((n_samples, 1)))
+            continue
+
+        fit_type = next((fit for idx, fit, _ in best_fits if idx == j), "linear")
+        transformed = transform_feature(xj, fit_type)
+
+        # Ensure 2D shape for stacking
+        if transformed.ndim == 1:
+            transformed = transformed.reshape(-1, 1)
+
+        transformed_columns.append(transformed)
+
+    # Concatenate all transformed columns horizontally
+    response_matrix = np.hstack(transformed_columns)
+    return response_matrix
 #Load the matlab file - Mia
 training_data=scio.loadmat("./proj1files/trainingdata.mat")
 #Weird Dict, one key being "trainingdata" and the value is an np.ndarray
@@ -258,11 +400,16 @@ def lasso_coordinate_descent(X, y, lmbda, num_iters=1000, tol=1e-4):
             # Remove contribution of w[j]
             residual = y - y_pred + w[j] * X_j
             rho = X_j @ residual
+            denom = X_j @ X_j
+            if np.abs(denom) < 1e-12:
+                w[j] = 0.0
+                # Optionally: print(f"Warning: Feature {j} is constant/zero in lasso, setting weight to 0.")
+                continue
             if j == 0:
                 # Do not regularize intercept
-                w[j] = rho / (X_j @ X_j)
+                w[j] = rho / denom
             else:
-                w[j] = soft_thresholding(rho, lmbda / 2) / (X_j @ X_j)
+                w[j] = soft_thresholding(rho, lmbda / 2) / denom
         if np.linalg.norm(w - w_old, ord=1) < tol:
             break
     return w
@@ -690,3 +837,183 @@ print(f"Non Violent Crime MAPE (direct test): {mape_nv_test_lad_ridge:.2f}")
 print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_lad_ridge:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_lad_ridge:.2f}")
 
+#we now try for building a response matrix
+sorted_results_v=evaluate_fits(X_final,Y_violent)
+sorted_results_nv=evaluate_fits(X_final,Y_non_violent)
+best_fits_v = get_best_fit_per_feature(sorted_results_v)
+best_fits_nv = get_best_fit_per_feature(sorted_results_nv)
+#build response matrix
+X_response_v = build_transformed_matrix(X_final, best_fits_v)
+X_response_nv = build_transformed_matrix(X_final, best_fits_nv)
+X_test_response_v = build_transformed_matrix(X_test_final, best_fits_v)
+X_test_response_nv = build_transformed_matrix(X_test_final, best_fits_nv)
+#fit linear regression on response matrix
+# Violent
+beta_hat_v_response, *_ = np.linalg.lstsq(X_response_v, Y_violent, rcond=None)
+Y_violent_pred_response = X_response_v @ beta_hat_v_response
+# Non-violent
+beta_hat_nv_response, *_ = np.linalg.lstsq(X_response_nv, Y_non_violent, rcond=None)
+Y_non_violent_pred_response = X_response_nv @ beta_hat_nv_response
+# Violent test
+Y_violent_test_pred_response = X_test_response_v @ beta_hat_v_response
+# Non-violent test
+Y_non_violent_test_pred_response = X_test_response_nv @ beta_hat_nv_response
+# Calculate MAPE
+mape_v_response = mape(Y_violent, Y_violent_pred_response)
+mape_nv_response = mape(Y_non_violent, Y_non_violent_pred_response)
+mape_v_test_response = mape(Y_violent_test, Y_violent_test_pred_response)
+mape_nv_test_response = mape(Y_non_violent_test, Y_non_violent_test_pred_response)
+print("\nResponse Matrix Linear Regression Results:")
+print(f"Violent Crime MAPE (train): {mape_v_response:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_response:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_response:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_response:.2f}")
+#Do log fits now
+# Violent log fit
+beta_hat_v_log_response, *_ = np.linalg.lstsq(X_response_v, Y_violent_log_naive, rcond=None)
+Y_violent_exp_pred_response = np.exp(X_response_v @ beta_hat_v_log_response)
+# Non-violent log fit
+beta_hat_nv_log_response, *_ = np.linalg.lstsq(X_response_nv, Y_non_violent_log_naive, rcond=None)
+Y_non_violent_exp_pred_response = np.exp(X_response_nv @ beta_hat_nv_log_response)
+# Violent test log fit
+Y_violent_test_exp_pred_response = np.exp(X_test_response_v @ beta_hat_v_log_response)
+# Non-violent test log fit
+Y_non_violent_test_exp_pred_response = np.exp(X_test_response_nv @ beta_hat_nv_log_response)
+# Calculate MAPE for log fits
+mape_v_exp_response = mape(Y_violent, Y_violent_exp_pred_response)
+mape_nv_exp_response = mape(Y_non_violent, Y_non_violent_exp_pred_response)
+mape_v_test_exp_response = mape(Y_violent_test, Y_violent_test_exp_pred_response)
+mape_nv_test_exp_response = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_response)
+print("\nResponse Matrix Log-Transformed Linear Regression Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_response:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_response:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response:.2f}")
+
+#LAD on response matrix
+# Violent
+beta_hat_v_response_lad = lad_regression(X_response_v, Y_violent)
+Y_violent_pred_response_lad = X_response_v @ beta_hat_v_response_lad
+mape_v_response_lad = mape(Y_violent, Y_violent_pred_response_lad)
+# Non-violent
+beta_hat_nv_response_lad = lad_regression(X_response_nv, Y_non_violent)
+Y_non_violent_pred_response_lad = X_response_nv @ beta_hat_nv_response_lad
+mape_nv_response_lad = mape(Y_non_violent, Y_non_violent_pred_response_lad)
+# Violent test
+Y_violent_test_pred_response_lad = X_test_response_v @ beta_hat_v_response_lad
+mape_v_test_response_lad = mape(Y_violent_test, Y_violent_test_pred_response_lad)
+# Non-violent test
+Y_non_violent_test_pred_response_lad = X_test_response_nv @ beta_hat_nv_response_lad
+mape_nv_test_response_lad = mape(Y_non_violent_test, Y_non_violent_test_pred_response_lad)
+print("\nResponse Matrix LAD Regression Results:")
+print(f"Violent Crime MAPE (train): {mape_v_response_lad:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_response_lad:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_response_lad:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_response_lad:.2f}")
+# Log fits with LAD on response matrix
+# Violent log fit
+beta_hat_v_log_response_lad = lad_regression(X_response_v, Y_violent_log_naive)
+Y_violent_exp_pred_response_lad = np.exp(X_response_v @ beta_hat_v_log_response_lad)
+mape_v_exp_response_lad = mape(Y_violent, Y_violent_exp_pred_response_lad)
+# Non-violent log fit
+beta_hat_nv_log_response_lad = lad_regression(X_response_nv, Y_non_violent_log_naive)
+Y_non_violent_exp_pred_response_lad = np.exp(X_response_nv @ beta_hat_nv_log_response_lad)
+mape_nv_exp_response_lad = mape(Y_non_violent, Y_non_violent_exp_pred_response_lad)
+# Violent test log fit
+Y_violent_test_exp_pred_response_lad = np.exp(X_test_response_v @ beta_hat_v_log_response_lad)
+mape_v_test_exp_response_lad = mape(Y_violent_test, Y_violent_test_exp_pred_response_lad)
+# Non-violent test log fit
+Y_non_violent_test_exp_pred_response_lad = np.exp(X_test_response_nv @ beta_hat_nv_log_response_lad)
+mape_nv_test_exp_response_lad = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_response_lad)
+print("\nResponse Matrix LAD Log-Transformed Regression Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_response_lad:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_response_lad:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_lad:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_lad:.2f}")
+
+#Ridge on response matrix
+lmbda_response_ridge = 1e-4  # Increased regularization for stability
+
+def ridge_regression_safe(X, y, lmbda):
+    n_features = X.shape[1]
+    I = np.eye(n_features)
+    I[0, 0] = 0  # do not regularize intercept
+    # Add a small epsilon to the diagonal for numerical stability
+    reg_matrix = lmbda * I + 1e-8 * np.eye(n_features)
+    A = X.T @ X + reg_matrix
+    # Use pseudo-inverse for extra robustness
+    return np.linalg.pinv(A) @ (X.T @ y)
+
+# Violent
+beta_hat_v_response_ridge = ridge_regression_safe(X_response_v, Y_violent, lmbda_response_ridge)
+Y_violent_pred_response_ridge = X_response_v @ beta_hat_v_response_ridge
+mape_v_response_ridge = mape(Y_violent, Y_violent_pred_response_ridge)
+Y_violent_test_pred_response_ridge = X_test_response_v @ beta_hat_v_response_ridge
+mape_v_test_response_ridge = mape(Y_violent_test, Y_violent_test_pred_response_ridge)
+# Non-violent
+beta_hat_nv_response_ridge = ridge_regression_safe(X_response_nv, Y_non_violent, lmbda_response_ridge)
+Y_non_violent_pred_response_ridge = X_response_nv @ beta_hat_nv_response_ridge
+mape_nv_response_ridge = mape(Y_non_violent, Y_non_violent_pred_response_ridge)
+Y_non_violent_test_pred_response_ridge = X_test_response_nv @ beta_hat_nv_response_ridge
+mape_nv_test_response_ridge = mape(Y_non_violent_test, Y_non_violent_test_pred_response_ridge)
+print("\nResponse Matrix Ridge Regression Results:")
+print(f"Violent Crime MAPE (train): {mape_v_response_ridge:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_response_ridge:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_response_ridge:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_response_ridge:.2f}")
+# Log fits with Ridge on response matrix
+# Violent log fit
+beta_hat_v_log_response_ridge = ridge_regression_safe(X_response_v, Y_violent_log_naive, lmbda_response_ridge)
+Y_violent_exp_pred_response_ridge = np.exp(X_response_v @ beta_hat_v_log_response_ridge)
+mape_v_exp_response_ridge = mape(Y_violent, Y_violent_exp_pred_response_ridge)
+Y_violent_test_exp_pred_response_ridge = np.exp(X_test_response_v @ beta_hat_v_log_response_ridge)
+mape_v_test_exp_response_ridge = mape(Y_violent_test, Y_violent_test_exp_pred_response_ridge)
+# Non-violent log fit
+beta_hat_nv_log_response_ridge = ridge_regression_safe(X_response_nv, Y_non_violent_log_naive, lmbda_response_ridge)
+Y_non_violent_exp_pred_response_ridge = np.exp(X_response_nv @ beta_hat_nv_log_response_ridge)
+mape_nv_exp_response_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_response_ridge)
+Y_non_violent_test_exp_pred_response_ridge = np.exp(X_test_response_nv @ beta_hat_nv_log_response_ridge)
+mape_nv_test_exp_response_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_response_ridge)
+print("\nResponse Matrix Ridge Log-Transformed Regression Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_response_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_response_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_ridge:.2f}")
+
+#we now try lasso on response matrix
+lmbda_response_lasso = 1e2  # You can tune this value
+# Violent
+beta_hat_v_response_lasso = lasso_coordinate_descent(X_response_v, Y_violent, lmbda_response_lasso)
+Y_violent_pred_response_lasso = X_response_v @ beta_hat_v_response_lasso
+mape_v_response_lasso = mape(Y_violent, Y_violent_pred_response_lasso)
+Y_violent_test_pred_response_lasso = X_test_response_v @ beta_hat_v_response_lasso
+mape_v_test_response_lasso = mape(Y_violent_test, Y_violent_test_pred_response_lasso)
+# Non-violent
+beta_hat_nv_response_lasso = lasso_coordinate_descent(X_response_nv, Y_non_violent, lmbda_response_lasso)
+Y_non_violent_pred_response_lasso = X_response_nv @ beta_hat_nv_response_lasso
+mape_nv_response_lasso = mape(Y_non_violent, Y_non_violent_pred_response_lasso)
+Y_non_violent_test_pred_response_lasso = X_test_response_nv @ beta_hat_nv_response_lasso
+mape_nv_test_response_lasso = mape(Y_non_violent_test, Y_non_violent_test_pred_response_lasso)
+print("\nResponse Matrix Lasso Regression Results:")
+print(f"Violent Crime MAPE (train): {mape_v_response_lasso:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_response_lasso:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_response_lasso:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_response_lasso:.2f}")
+# Log fits with Lasso on response matrix
+# Violent log fit
+beta_hat_v_log_response_lasso = lasso_coordinate_descent(X_response_v, Y_violent_log_naive, lmbda_response_lasso)
+Y_violent_exp_pred_response_lasso = np.exp(X_response_v @ beta_hat_v_log_response_lasso)
+mape_v_exp_response_lasso = mape(Y_violent, Y_violent_exp_pred_response_lasso)
+Y_violent_test_exp_pred_response_lasso = np.exp(X_test_response_v @ beta_hat_v_log_response_lasso)
+mape_v_test_exp_response_lasso = mape(Y_violent_test, Y_violent_test_exp_pred_response_lasso)
+# Non-violent log fit
+beta_hat_nv_log_response_lasso = lasso_coordinate_descent(X_response_nv, Y_non_violent_log_naive, lmbda_response_lasso)
+Y_non_violent_exp_pred_response_lasso = np.exp(X_response_nv @ beta_hat_nv_log_response_lasso)
+mape_nv_exp_response_lasso = mape(Y_non_violent, Y_non_violent_exp_pred_response_lasso)
+Y_non_violent_test_exp_pred_response_lasso = np.exp(X_test_response_nv @ beta_hat_nv_log_response_lasso)
+mape_nv_test_exp_response_lasso = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_response_lasso)
+print("\nResponse Matrix Lasso Log-Transformed Regression Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_response_lasso:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_response_lasso:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_lasso:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_lasso:.2f}")
