@@ -5,6 +5,7 @@ import seaborn as sns
 from os import makedirs, path
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
+import scipy.optimize as opt
 
 def r_squared(y_true, y_pred):
     ss_res = np.sum((y_true - y_pred) ** 2)
@@ -213,7 +214,7 @@ def dropout_highly_correlated_features(X, threshold=0.9):
     keep_indices = [i for i in range(num_features) if i not in to_drop]
     return X[:, keep_indices], keep_indices
 X_dropped_normalized, kept_indices = dropout_highly_correlated_features(normalize_features, threshold=0.9)
-print(kept_indices)
+print(f"indices kept from first round of dropping highly correlated features: {kept_indices}")
 print(f"Shape after dropping highly correlated features: {X_dropped_normalized.shape}")
 #Scatter plot for X_dropped_normalized for violent and non-violent
 def scatter_plots(X, y_violent, y_non_violent, kept_indices):
@@ -264,7 +265,7 @@ def drop_high_kurtosis_features(X, kurtosis_vector, threshold=10):
 X_final, final_kept_indices = drop_high_kurtosis_features(X_dropped_normalized, kurtosis_vector, threshold=10)
 #X_final=X_dropped_normalized
 print(f"Final shape after dropping high kurtosis features: {X_final.shape}")
-
+print(f"Final kept feature indices: {[kept_indices[i] for i in final_kept_indices]}")
 #naiive regression on X_final
 X_final = np.insert(X_final, 0, np.ones((X_final.shape[0],)), axis=1) #add intercept
 #violent
@@ -337,7 +338,7 @@ def ridge_regression(X, y, lmbda):
     return beta_ridge
 
 # Set regularization strength (lambda)
-lmbda = 10  # You can tune this value
+lmbda = 1e-4  # Set to 1e-4 as requested
 
 # Violent
 beta_hat_v_ridge = ridge_regression(X_final, Y_violent, lmbda)
@@ -348,9 +349,9 @@ mape_v_ridge = mape(Y_violent, Y_violent_pred_ridge)
 beta_hat_v_log_ridge = ridge_regression(X_final, Y_violent_log_naive, lmbda)
 Y_violent_exp_pred_ridge = np.exp(X_final @ beta_hat_v_log_ridge)
 mape_v_exp_ridge = mape(Y_violent, Y_violent_exp_pred_ridge)
-print("\n\nRidge Regression Results:")
-print(f"Violent Crime MAPE (direct) ridge: {mape_v_ridge:.2f}")
-print(f"Violent Crime MAPE (log fit on y) ridge: {mape_v_exp_ridge:.2f}")
+print(f"\n\nRidge Regression Results (lambda={lmbda}):")
+print(f"Violent Crime MAPE (direct) ridge (lambda={lmbda}): {mape_v_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit on y) ridge (lambda={lmbda}): {mape_v_exp_ridge:.2f}")
 
 # Non-violent
 beta_hat_nv_ridge = ridge_regression(X_final, Y_non_violent, lmbda)
@@ -362,23 +363,23 @@ beta_hat_nv_log_ridge = ridge_regression(X_final, Y_non_violent_log_naive, lmbda
 Y_non_violent_exp_pred_ridge = np.exp(X_final @ beta_hat_nv_log_ridge)
 mape_nv_exp_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_ridge)
 
-print(f"Non Violent Crime MAPE (direct) ridge: {mape_nv_ridge:.2f}")
-print(f"Non Violent Crime MAPE (log fit on y) ridge: {mape_nv_exp_ridge:.2f}")
+print(f"Non Violent Crime MAPE (direct) ridge (lambda={lmbda}): {mape_nv_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit on y) ridge (lambda={lmbda}): {mape_nv_exp_ridge:.2f}")
 
 # Test set predictions with ridge
 Y_violent_test_pred_ridge = X_test_final @ beta_hat_v_ridge
 mape_v_test_ridge = mape(Y_violent_test, Y_violent_test_pred_ridge)
 Y_violent_test_exp_pred_ridge = np.exp(X_test_final @ beta_hat_v_log_ridge)
 mape_v_test_exp_ridge = mape(Y_violent_test, Y_violent_test_exp_pred_ridge)
-print(f"Violent Crime Test MAPE (direct) ridge: {mape_v_test_ridge:.2f}")
-print(f"Violent Crime Test MAPE (log fit on y) ridge: {mape_v_test_exp_ridge:.2f}")
+print(f"Violent Crime Test MAPE (direct) ridge (lambda={lmbda}): {mape_v_test_ridge:.2f}")
+print(f"Violent Crime Test MAPE (log fit on y) ridge (lambda={lmbda}): {mape_v_test_exp_ridge:.2f}")
 
 Y_non_violent_test_pred_ridge = X_test_final @ beta_hat_nv_ridge
 mape_nv_test_ridge = mape(Y_non_violent_test, Y_non_violent_test_pred_ridge)
 Y_non_violent_test_exp_pred_ridge = np.exp(X_test_final @ beta_hat_nv_log_ridge)
 mape_nv_test_exp_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_ridge)
-print(f"Non Violent Crime Test MAPE (direct) ridge: {mape_nv_test_ridge:.2f}")
-print(f"Non Violent Crime Test MAPE (log fit on y) ridge: {mape_nv_test_exp_ridge:.2f}")
+print(f"Non Violent Crime Test MAPE (direct) ridge (lambda={lmbda}): {mape_nv_test_ridge:.2f}")
+print(f"Non Violent Crime Test MAPE (log fit on y) ridge (lambda={lmbda}): {mape_nv_test_exp_ridge:.2f}")
 
 
 
@@ -416,7 +417,7 @@ def lasso_coordinate_descent(X, y, lmbda, num_iters=1000, tol=1e-4):
             break
     return w
 
-lmbda_lasso = 0.1  # You can tune this value
+lmbda_lasso = 1e-4  # Set to 1e-4 as requested
 
 # Violent
 beta_hat_v_lasso = lasso_coordinate_descent(X_final, Y_violent, lmbda_lasso)
@@ -428,9 +429,9 @@ beta_hat_v_log_lasso = lasso_coordinate_descent(X_final, Y_violent_log_naive, lm
 Y_violent_exp_pred_lasso = np.exp(X_final @ beta_hat_v_log_lasso)
 mape_v_exp_lasso = mape(Y_violent, Y_violent_exp_pred_lasso)
 
-print("\nLasso Regression Results (from scratch):")
-print(f"Violent Crime MAPE (direct) lasso: {mape_v_lasso:.2f}")
-print(f"Violent Crime MAPE (log fit on y) lasso: {mape_v_exp_lasso:.2f}")
+print(f"\nLasso Regression Results (from scratch, lambda={lmbda_lasso}):")
+print(f"Violent Crime MAPE (direct) lasso (lambda={lmbda_lasso}): {mape_v_lasso:.2f}")
+print(f"Violent Crime MAPE (log fit on y) lasso (lambda={lmbda_lasso}): {mape_v_exp_lasso:.2f}")
 
 # Non-violent
 beta_hat_nv_lasso = lasso_coordinate_descent(X_final, Y_non_violent, lmbda_lasso)
@@ -442,26 +443,27 @@ beta_hat_nv_log_lasso = lasso_coordinate_descent(X_final, Y_non_violent_log_naiv
 Y_non_violent_exp_pred_lasso = np.exp(X_final @ beta_hat_nv_log_lasso)
 mape_nv_exp_lasso = mape(Y_non_violent, Y_non_violent_exp_pred_lasso)
 
-print(f"Non Violent Crime MAPE (direct) lasso: {mape_nv_lasso:.2f}")
-print(f"Non Violent Crime MAPE (log fit on y) lasso: {mape_nv_exp_lasso:.2f}")
+print(f"Non Violent Crime MAPE (direct) lasso (lambda={lmbda_lasso}): {mape_nv_lasso:.2f}")
+print(f"Non Violent Crime MAPE (log fit on y) lasso (lambda={lmbda_lasso}): {mape_nv_exp_lasso:.2f}")
 
 # Test set predictions with lasso
 Y_violent_test_pred_lasso = X_test_final @ beta_hat_v_lasso
 mape_v_test_lasso = mape(Y_violent_test, Y_violent_test_pred_lasso)
 Y_violent_test_exp_pred_lasso = np.exp(X_test_final @ beta_hat_v_log_lasso)
 mape_v_test_exp_lasso = mape(Y_violent_test, Y_violent_test_exp_pred_lasso)
-print(f"Violent Crime Test MAPE (direct) lasso: {mape_v_test_lasso:.2f}")
-print(f"Violent Crime Test MAPE (log fit on y) lasso: {mape_v_test_exp_lasso:.2f}")
+print(f"Violent Crime Test MAPE (direct) lasso (lambda={lmbda_lasso}): {mape_v_test_lasso:.2f}")
+print(f"Violent Crime Test MAPE (log fit on y) lasso (lambda={lmbda_lasso}): {mape_v_test_exp_lasso:.2f}")
 
+#non-violent
 Y_non_violent_test_pred_lasso = X_test_final @ beta_hat_nv_lasso
 mape_nv_test_lasso = mape(Y_non_violent_test, Y_non_violent_test_pred_lasso)
 Y_non_violent_test_exp_pred_lasso = np.exp(X_test_final @ beta_hat_nv_log_lasso)
 mape_nv_test_exp_lasso = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_lasso)
-print(f"Non Violent Crime Test MAPE (direct) lasso: {mape_nv_test_lasso:.2f}")
-print(f"Non Violent Crime Test MAPE (log fit on y) lasso: {mape_nv_test_exp_lasso:.2f}")
+print(f"Non Violent Crime Test MAPE (direct) lasso (lambda={lmbda_lasso}): {mape_nv_test_lasso:.2f}")
+print(f"Non Violent Crime Test MAPE (log fit on y) lasso (lambda={lmbda_lasso}): {mape_nv_test_exp_lasso:.2f}")
 
 
-# Robust Regression: Least Absolute Deviations (LAD)
+#Robust Regression: Least Absolute Deviations (LAD)
 def lad_regression(X, y, num_iters=100, tol=1e-4):
     n, d = X.shape
     w = np.linalg.lstsq(X, y, rcond=None)[0]  # initialize with least squares
@@ -572,7 +574,7 @@ print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_poly:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_poly:.2f}")
 
 # --- Lasso (L1) Regression on nth Degree Polynomial Features (manual, coordinate descent) ---
-lmbda_poly_lasso = 0.1  # You can tune this value
+lmbda_poly_lasso = 1e-4  # Set to 1e-4 as requested
 
 # Violent (direct)
 beta_hat_v_poly_lasso = lasso_coordinate_descent(X_final_poly, Y_violent, lmbda_poly_lasso)
@@ -602,15 +604,15 @@ mape_nv_exp_poly_lasso = mape(Y_non_violent, Y_non_violent_exp_pred_poly_lasso)
 Y_non_violent_test_exp_pred_poly_lasso = np.exp(X_test_final_poly @ beta_hat_nv_log_poly_lasso)
 mape_nv_test_exp_poly_lasso = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_poly_lasso)
 
-print("\nLasso on 3rd Degree Polynomial Features (manual):")
-print(f"Violent Crime MAPE (direct train): {mape_v_poly_lasso:.2f}")
-print(f"Violent Crime MAPE (direct test): {mape_v_test_poly_lasso:.2f}")
-print(f"Violent Crime MAPE (log fit train): {mape_v_exp_poly_lasso:.2f}")
-print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_poly_lasso:.2f}")
-print(f"Non Violent Crime MAPE (direct train): {mape_nv_poly_lasso:.2f}")
-print(f"Non Violent Crime MAPE (direct test): {mape_nv_test_poly_lasso:.2f}")
-print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_poly_lasso:.2f}")
-print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_poly_lasso:.2f}")
+print(f"\nLasso on 3rd Degree Polynomial Features (manual, lambda={lmbda_poly_lasso}):")
+print(f"Violent Crime MAPE (direct train, lambda={lmbda_poly_lasso}): {mape_v_poly_lasso:.2f}")
+print(f"Violent Crime MAPE (direct test, lambda={lmbda_poly_lasso}): {mape_v_test_poly_lasso:.2f}")
+print(f"Violent Crime MAPE (log fit train, lambda={lmbda_poly_lasso}): {mape_v_exp_poly_lasso:.2f}")
+print(f"Violent Crime MAPE (log fit test, lambda={lmbda_poly_lasso}): {mape_v_test_exp_poly_lasso:.2f}")
+print(f"Non Violent Crime MAPE (direct train, lambda={lmbda_poly_lasso}): {mape_nv_poly_lasso:.2f}")
+print(f"Non Violent Crime MAPE (direct test, lambda={lmbda_poly_lasso}): {mape_nv_test_poly_lasso:.2f}")
+print(f"Non Violent Crime MAPE (log fit train, lambda={lmbda_poly_lasso}): {mape_nv_exp_poly_lasso:.2f}")
+print(f"Non Violent Crime MAPE (log fit test, lambda={lmbda_poly_lasso}): {mape_nv_test_exp_poly_lasso:.2f}")
 
 # --- Stepwise Linear Regression (Forward Selection, manual) ---
 def stepwise_forward_selection(X, y, max_features=None, tol=1e-4):
@@ -760,7 +762,7 @@ def lad_ridge_regression(X, y, lmbda=1.0, num_iters=100, tol=1e-4):
         w = w_new
     return w
 
-lmbda_lad_ridge = 1.0  # You can tune this value
+lmbda_lad_ridge = 1e-4  # Set to 1e-4 as requested
 
 # Violent (direct)
 beta_hat_v_poly_lad_ridge = lad_ridge_regression(X_final_poly, Y_violent, lmbda=lmbda_lad_ridge)
@@ -790,16 +792,17 @@ mape_nv_exp_poly_lad_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_poly_lad
 Y_non_violent_test_exp_pred_poly_lad_ridge = np.exp(X_test_final_poly @ beta_hat_nv_log_poly_lad_ridge)
 mape_nv_test_exp_poly_lad_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_poly_lad_ridge)
 
-print("\nLAD with Ridge Regularization on 3rd Degree Polynomial Features (manual):")
-print(f"Violent Crime MAPE (direct train): {mape_v_poly_lad_ridge:.2f}")
-print(f"Violent Crime MAPE (direct test): {mape_v_test_poly_lad_ridge:.2f}")
-print(f"Violent Crime MAPE (log fit train): {mape_v_exp_poly_lad_ridge:.2f}")
-print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_poly_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (direct train): {mape_nv_poly_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (direct test): {mape_nv_test_poly_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_poly_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_poly_lad_ridge:.2f}")
-lmbda_lad_ridge_linear = 1.0  # You can tune this value
+print(f"\nLAD with Ridge Regularization on 3rd Degree Polynomial Features (manual, lambda={lmbda_lad_ridge}):")
+print(f"Violent Crime MAPE (direct train, lambda={lmbda_lad_ridge}): {mape_v_poly_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (direct test, lambda={lmbda_lad_ridge}): {mape_v_test_poly_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit train, lambda={lmbda_lad_ridge}): {mape_v_exp_poly_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test, lambda={lmbda_lad_ridge}): {mape_v_test_exp_poly_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (direct train, lambda={lmbda_lad_ridge}): {mape_nv_poly_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (direct test, lambda={lmbda_lad_ridge}): {mape_nv_test_poly_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train, lambda={lmbda_lad_ridge}): {mape_nv_exp_poly_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test, lambda={lmbda_lad_ridge}): {mape_nv_test_exp_poly_lad_ridge:.2f}")
+
+lmbda_lad_ridge_linear = 1e-4  # Set to 1e-4 as requested
 
 # Violent (direct)
 beta_hat_v_lad_ridge = lad_ridge_regression(X_final, Y_violent, lmbda=lmbda_lad_ridge_linear)
@@ -829,15 +832,15 @@ mape_nv_exp_lad_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_lad_ridge)
 Y_non_violent_test_exp_pred_lad_ridge = np.exp(X_test_final @ beta_hat_nv_log_lad_ridge)
 mape_nv_test_exp_lad_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_lad_ridge)
 
-print("\nLAD with Ridge Regularization on Linear Features (manual):")
-print(f"Violent Crime MAPE (direct train): {mape_v_lad_ridge:.2f}")
-print(f"Violent Crime MAPE (direct test): {mape_v_test_lad_ridge:.2f}")
-print(f"Violent Crime MAPE (log fit train): {mape_v_exp_lad_ridge:.2f}")
-print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (direct train): {mape_nv_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (direct test): {mape_nv_test_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_lad_ridge:.2f}")
-print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_lad_ridge:.2f}")
+print(f"\nLAD with Ridge Regularization on Linear Features (manual, lambda={lmbda_lad_ridge_linear}):")
+print(f"Violent Crime MAPE (direct train, lambda={lmbda_lad_ridge_linear}): {mape_v_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (direct test, lambda={lmbda_lad_ridge_linear}): {mape_v_test_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit train, lambda={lmbda_lad_ridge_linear}): {mape_v_exp_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test, lambda={lmbda_lad_ridge_linear}): {mape_v_test_exp_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (direct train, lambda={lmbda_lad_ridge_linear}): {mape_nv_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (direct test, lambda={lmbda_lad_ridge_linear}): {mape_nv_test_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train, lambda={lmbda_lad_ridge_linear}): {mape_nv_exp_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test, lambda={lmbda_lad_ridge_linear}): {mape_nv_test_exp_lad_ridge:.2f}")
 
 #we now try for building a response matrix
 sorted_results_v=evaluate_fits(X_final,Y_violent)
@@ -934,7 +937,7 @@ print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_lad:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_lad:.2f}")
 
 #Ridge on response matrix
-lmbda_response_ridge = 1e-5
+lmbda_response_ridge = 1e-4
 
 def ridge_regression_safe(X, y, lmbda):
     n_features = X.shape[1]
@@ -983,7 +986,7 @@ print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_ridge:.2f}
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_ridge:.2f}")
 
 #we now try lasso on response matrix
-lmbda_response_lasso = 1e-5  # You can tune this value
+lmbda_response_lasso = 1e-4  # Set to 1e-4 as requested
 # Violent
 beta_hat_v_response_lasso = lasso_coordinate_descent(X_response_v, Y_violent, lmbda_response_lasso)
 Y_violent_pred_response_lasso = X_response_v @ beta_hat_v_response_lasso
@@ -1143,3 +1146,62 @@ print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_svd_poly_ridge:.2f}"
 print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_svd_poly_ridge:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_svd_poly_ridge:.2f}")
 
+
+# --- MATLAB SVD Ridge Regression with MAPE Optimization (Python version) ---
+# Select columns (MATLAB is 1-based, Python is 0-based)
+selected_columns = [0, 1, 2, 3, 4, 5, 6, 7, 9, 11, 12, 13, 14, 15, 17, 18, 22, 23, 24, 25, 26,
+                   28, 29, 31, 32, 33, 34, 35, 36, 38, 39, 42, 43, 47, 50, 51, 52, 56,
+                   62, 66, 67, 68, 69, 70, 72, 74, 75, 76, 77]
+
+X_matlab = training_data[:, selected_columns]
+y_violent = training_data[:, 79]
+y_nonviolent = training_data[:, 80]
+
+# Normalize X (zero mean, unit variance)
+X_matlab = (X_matlab - np.mean(X_matlab, axis=0)) / (np.std(X_matlab, axis=0) + 1e-8)
+
+# Add intercept
+X_matlab = np.hstack([np.ones((X_matlab.shape[0], 1)), X_matlab])
+
+# Ridge regularization parameter
+lambda_ridge = 1.0
+
+# Identity matrix, do not regularize intercept
+I = np.eye(X_matlab.shape[1])
+I[0, 0] = 0
+
+# SVD decomposition
+U, S, Vt = np.linalg.svd(X_matlab, full_matrices=False)
+V = Vt.T
+S_inv_ridge = S / (S**2 + lambda_ridge)
+S_inv_matrix = np.diag(S_inv_ridge)
+
+# Ridge solution for log(y)
+beta_0_violent = V @ S_inv_matrix @ U.T @ np.log(y_violent)
+beta_0_nonviolent = V @ S_inv_matrix @ U.T @ np.log(y_nonviolent)
+
+def optimize_MAPE(X, y, beta_init, lambda_ridge, I):
+    def loss_func(beta):
+        y_pred = np.exp(X @ beta)
+        mape = np.mean(np.abs((y - y_pred) / y))
+        penalty = lambda_ridge * np.linalg.norm(I @ beta) ** 2
+        return mape + penalty
+    res = opt.minimize(loss_func, beta_init, method='L-BFGS-B', options={'maxiter': 1000, 'ftol': 1e-6})
+    return res.x
+
+beta_1_violent = optimize_MAPE(X_matlab, y_violent, beta_0_violent, lambda_ridge, I)
+beta_1_nonviolent = optimize_MAPE(X_matlab, y_nonviolent, beta_0_nonviolent, lambda_ridge, I)
+
+# Predict and exponentiate
+yviolent_prediction = np.exp(X_matlab @ beta_1_violent)
+ynonviolent_prediction = np.exp(X_matlab @ beta_1_nonviolent)
+
+# Compute MAPE
+MAPE_violent = np.mean(np.abs((y_violent - yviolent_prediction) / y_violent)) * 100
+MAPE_nonviolent = np.mean(np.abs((y_nonviolent - ynonviolent_prediction) / y_nonviolent)) * 100
+
+print('\nMATLAB SVD Ridge + MAPE Optimization (log version):')
+print('Violent Crime:')
+print(f'MAPE: {MAPE_violent:.4f}%')
+print('Non-Violent Crime:')
+print(f'MAPE: {MAPE_nonviolent:.4f}%')
