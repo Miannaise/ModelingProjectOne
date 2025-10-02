@@ -338,7 +338,7 @@ def ridge_regression(X, y, lmbda):
     return beta_ridge
 
 # Set regularization strength (lambda)
-lmbda = 1e-4  # Set to 1e-4 as requested
+lmbda = 1e-4
 
 # Violent
 beta_hat_v_ridge = ridge_regression(X_final, Y_violent, lmbda)
@@ -522,7 +522,7 @@ print(f"Non Violent Crime Test MAPE (log fit on y) lad: {mape_nv_test_exp_lad:.2
 
 
 
-#4th Degree Polynomial Regression
+#3rd Degree Polynomial Regression
 def make_poly_features(X, degree=4):
     # Only powers of each feature, no cross-terms
     X_poly = [np.ones(X.shape[0])]
@@ -742,7 +742,7 @@ print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_poly_lad:.2f}")
 
 
 
-# --- LAD with Ridge Regularization (Elastic LAD, manual IRLS+L2) ---
+# --- LAD with Ridge Regularization
 def lad_ridge_regression(X, y, lmbda=1.0, num_iters=100, tol=1e-4):
     n, d = X.shape
     w = np.linalg.lstsq(X, y, rcond=None)[0]  # initialize with least squares
@@ -1024,6 +1024,129 @@ print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_lasso:.2f}
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_lasso:.2f}")
 
 
+#We try SVD with ridge LAD regularization on all features
+lmbda_svd=1e-4
+U, S, VT = np.linalg.svd(X_final, full_matrices=False)
+X_svd = U @ np.diag(S)
+X_test_svd = X_test_final @ VT.T
+# Violent
+beta_hat_v_svd_lad_ridge = lad_ridge_regression(X_svd, Y_violent, lmbda=lmbda_svd)
+Y_violent_pred_svd_lad_ridge = X_svd @ beta_hat_v_svd_lad_ridge
+mape_v_svd_lad_ridge = mape(Y_violent, Y_violent_pred_svd_lad_ridge)
+Y_violent_test_pred_svd_lad_ridge = X_test_svd @ beta_hat_v_svd_lad_ridge
+mape_v_test_svd_lad_ridge = mape(Y_violent_test, Y_violent_test_pred_svd_lad_ridge)
+# Non-violent
+beta_hat_nv_svd_lad_ridge = lad_ridge_regression(X_svd, Y_non_violent, lmbda=lmbda_svd)
+Y_non_violent_pred_svd_lad_ridge = X_svd @ beta_hat_nv_svd_lad_ridge
+mape_nv_svd_lad_ridge = mape(Y_non_violent, Y_non_violent_pred_svd_lad_ridge)
+Y_non_violent_test_pred_svd_lad_ridge = X_test_svd @ beta_hat_nv_svd_lad_ridge
+mape_nv_test_svd_lad_ridge = mape(Y_non_violent_test, Y_non_violent_test_pred_svd_lad_ridge)
+print("\nSVD with LAD Ridge Regularization Results:")
+print(f"Violent Crime MAPE (train): {mape_v_svd_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_svd_lad_ridge:.2f}")
+# Log fits with SVD and LAD Ridge
+# Violent log fit
+beta_hat_v_log_svd_lad_ridge = lad_ridge_regression(X_svd, Y_violent_log_naive, lmbda=lmbda_svd)
+Y_violent_exp_pred_svd_lad_ridge = np.exp(X_svd @ beta_hat_v_log_svd_lad_ridge)
+mape_v_exp_svd_lad_ridge = mape(Y_violent, Y_violent_exp_pred_svd_lad_ridge)
+Y_violent_test_exp_pred_svd_lad_ridge = np.exp(X_test_svd @ beta_hat_v_log_svd_lad_ridge)
+mape_v_test_exp_svd_lad_ridge = mape(Y_violent_test, Y_violent_test_exp_pred_svd_lad_ridge)
+# Non-violent log fit
+beta_hat_nv_log_svd_lad_ridge = lad_ridge_regression(X_svd, Y_non_violent_log_naive, lmbda=lmbda_svd)
+Y_non_violent_exp_pred_svd_lad_ridge = np.exp(X_svd @ beta_hat_nv_log_svd_lad_ridge)
+mape_nv_exp_svd_lad_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_svd_lad_ridge)
+Y_non_violent_test_exp_pred_svd_lad_ridge = np.exp(X_test_svd @ beta_hat_nv_log_svd_lad_ridge)
+mape_nv_test_exp_svd_lad_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_svd_lad_ridge)
+print("\nSVD with LAD Ridge Log-Transformed Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_svd_lad_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_svd_lad_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_svd_lad_ridge:.2f}")
+
+
+#linear regression svd with ridge
+lmbda_svd_ridge=1e-4
+# Violent
+beta_hat_v_svd_ridge = ridge_regression_safe(X_svd, Y_violent, lmbda_svd_ridge)
+Y_violent_pred_svd_ridge = X_svd @ beta_hat_v_svd_ridge
+mape_v_svd_ridge = mape(Y_violent, Y_violent_pred_svd_ridge)
+Y_violent_test_pred_svd_ridge = X_test_svd @ beta_hat_v_svd_ridge
+mape_v_test_svd_ridge = mape(Y_violent_test, Y_violent_test_pred_svd_ridge)
+# Non-violent
+beta_hat_nv_svd_ridge = ridge_regression_safe(X_svd, Y_non_violent, lmbda_svd_ridge)
+Y_non_violent_pred_svd_ridge = X_svd @ beta_hat_nv_svd_ridge
+mape_nv_svd_ridge = mape(Y_non_violent, Y_non_violent_pred_svd_ridge)
+Y_non_violent_test_pred_svd_ridge = X_test_svd @ beta_hat_nv_svd_ridge
+mape_nv_test_svd_ridge = mape(Y_non_violent_test, Y_non_violent_test_pred_svd_ridge)
+print("\nSVD with Ridge Regression Results:")
+print(f"Violent Crime MAPE (train): {mape_v_svd_ridge:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_svd_ridge:.2f}")
+# Log fits with SVD and Ridge
+# Violent log fit
+beta_hat_v_log_svd_ridge = ridge_regression_safe(X_svd, Y_violent_log_naive, lmbda_svd_ridge)
+Y_violent_exp_pred_svd_ridge = np.exp(X_svd @ beta_hat_v_log_svd_ridge)
+mape_v_exp_svd_ridge = mape(Y_violent, Y_violent_exp_pred_svd_ridge)
+Y_violent_test_exp_pred_svd_ridge = np.exp(X_test_svd @ beta_hat_v_log_svd_ridge)
+mape_v_test_exp_svd_ridge = mape(Y_violent_test, Y_violent_test_exp_pred_svd_ridge)
+# Non-violent log fit
+beta_hat_nv_log_svd_ridge = ridge_regression_safe(X_svd, Y_non_violent_log_naive, lmbda_svd_ridge)
+Y_non_violent_exp_pred_svd_ridge = np.exp(X_svd @ beta_hat_nv_log_svd_ridge)
+mape_nv_exp_svd_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_svd_ridge)
+Y_non_violent_test_exp_pred_svd_ridge = np.exp(X_test_svd @ beta_hat_nv_log_svd_ridge)
+mape_nv_test_exp_svd_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_svd_ridge)
+print("\nSVD with Ridge Log-Transformed Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_svd_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_svd_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_svd_ridge:.2f}")
+
+
+#add svd for 3rd degree polynomial features with ridge regression
+U_poly, S_poly, VT_poly = np.linalg.svd(X_final_poly, full_matrices=False)
+X_svd_poly = U_poly @ np.diag(S_poly)
+X_test_svd_poly = X_test_final_poly @ VT_poly.T
+lmbda_svd_poly_ridge=1e-4
+# Violent
+beta_hat_v_svd_poly_ridge = ridge_regression_safe(X_svd_poly, Y_violent, lmbda_svd_poly_ridge)
+Y_violent_pred_svd_poly_ridge = X_svd_poly @ beta_hat_v_svd_poly_ridge
+mape_v_svd_poly_ridge = mape(Y_violent, Y_violent_pred_svd_poly_ridge)
+Y_violent_test_pred_svd_poly_ridge = X_test_svd_poly @ beta_hat_v_svd_poly_ridge
+mape_v_test_svd_poly_ridge = mape(Y_violent_test, Y_violent_test_pred_svd_poly_ridge)
+# Non-violent
+beta_hat_nv_svd_poly_ridge = ridge_regression_safe(X_svd_poly, Y_non_violent, lmbda_svd_poly_ridge)
+Y_non_violent_pred_svd_poly_ridge = X_svd_poly @ beta_hat_nv_svd_poly_ridge
+mape_nv_svd_poly_ridge = mape(Y_non_violent, Y_non_violent_pred_svd_poly_ridge)
+Y_non_violent_test_pred_svd_poly_ridge = X_test_svd_poly @ beta_hat_nv_svd_poly_ridge
+mape_nv_test_svd_poly_ridge = mape(Y_non_violent_test, Y_non_violent_test_pred_svd_poly_ridge)
+print("\nSVD on 3rd Degree Polynomial Features with Ridge Regression Results:")
+print(f"Violent Crime MAPE (train): {mape_v_svd_poly_ridge:.2f}")
+print(f"Violent Crime MAPE (test): {mape_v_test_svd_poly_ridge:.2f}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_svd_poly_ridge:.2f}")
+print(f"Non Violent Crime MAPE (test): {mape_nv_test_svd_poly_ridge:.2f}")
+# Log fits with SVD on 3rd degree polynomial features and Ridge
+# Violent log fit
+beta_hat_v_log_svd_poly_ridge = ridge_regression_safe(X_svd_poly, Y_violent_log_naive, lmbda_svd_poly_ridge)
+Y_violent_exp_pred_svd_poly_ridge = np.exp(X_svd_poly @ beta_hat_v_log_svd_poly_ridge)
+mape_v_exp_svd_poly_ridge = mape(Y_violent, Y_violent_exp_pred_svd_poly_ridge)
+Y_violent_test_exp_pred_svd_poly_ridge = np.exp(X_test_svd_poly @ beta_hat_v_log_svd_poly_ridge)
+mape_v_test_exp_svd_poly_ridge = mape(Y_violent_test, Y_violent_test_exp_pred_svd_poly_ridge)
+# Non-violent log fit
+beta_hat_nv_log_svd_poly_ridge = ridge_regression_safe(X_svd_poly, Y_non_violent_log_naive, lmbda_svd_poly_ridge)
+Y_non_violent_exp_pred_svd_poly_ridge = np.exp(X_svd_poly @ beta_hat_nv_log_svd_poly_ridge)
+mape_nv_exp_svd_poly_ridge = mape(Y_non_violent, Y_non_violent_exp_pred_svd_poly_ridge)
+Y_non_violent_test_exp_pred_svd_poly_ridge = np.exp(X_test_svd_poly @ beta_hat_nv_log_svd_poly_ridge)
+mape_nv_test_exp_svd_poly_ridge = mape(Y_non_violent_test, Y_non_violent_test_exp_pred_svd_poly_ridge)
+print("\nSVD on 3rd Degree Polynomial Features with Ridge Log-Transformed Results:")
+print(f"Violent Crime MAPE (log fit train): {mape_v_exp_svd_poly_ridge:.2f}")
+print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_svd_poly_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_svd_poly_ridge:.2f}")
+print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_svd_poly_ridge:.2f}")
+
+
 # --- MATLAB SVD Ridge Regression with MAPE Optimization (Python version) ---
 # Select columns (MATLAB is 1-based, Python is 0-based)
 selected_columns = [0, 1, 2, 3, 4, 5, 6, 7, 9, 11, 12, 13, 14, 15, 17, 18, 22, 23, 24, 25, 26,
@@ -1082,106 +1205,3 @@ print('Violent Crime:')
 print(f'MAPE: {MAPE_violent:.4f}%')
 print('Non-Violent Crime:')
 print(f'MAPE: {MAPE_nonviolent:.4f}%')
-
-
-# --- 3rd Degree Polynomial SVD Ridge + MAPE Optimization (manual, no sklearn) ---
-def make_poly_features_manual(X, degree=3):
-    # X: (n_samples, n_features)
-    n, d = X.shape
-    # Start with bias column
-    features = [np.ones((n, 1))]
-    # Add powers for each feature up to degree
-    for deg in range(1, degree + 1):
-        features.append(X ** deg)
-    return np.hstack(features)
-
-# Use the same selected columns and y as before
-X_poly_manual = make_poly_features_manual(X_matlab[:, 1:], degree=3)  # exclude intercept for poly expansion
-
-# Ridge regularization parameter
-lambda_ridge_poly = 1.0
-
-# Identity matrix, do not regularize intercept
-I_poly = np.eye(X_poly_manual.shape[1])
-I_poly[0, 0] = 0
-
-# SVD decomposition
-U_poly, S_poly, Vt_poly = np.linalg.svd(X_poly_manual, full_matrices=False)
-V_poly = Vt_poly.T
-S_inv_ridge_poly = S_poly / (S_poly**2 + lambda_ridge_poly)
-S_inv_matrix_poly = np.diag(S_inv_ridge_poly)
-
-# Ridge solution for log(y)
-beta_0_violent_poly = V_poly @ S_inv_matrix_poly @ U_poly.T @ np.log(y_violent)
-beta_0_nonviolent_poly = V_poly @ S_inv_matrix_poly @ U_poly.T @ np.log(y_nonviolent)
-
-def optimize_MAPE_poly(X, y, beta_init, lambda_ridge, I):
-    def loss_func(beta):
-        y_pred = np.exp(X @ beta)
-        mape = np.mean(np.abs((y - y_pred) / y))
-        penalty = lambda_ridge * np.linalg.norm(I @ beta) ** 2
-        return mape + penalty
-    res = opt.minimize(loss_func, beta_init, method='L-BFGS-B', options={'maxiter': 1000, 'ftol': 1e-6})
-    return res.x
-
-beta_1_violent_poly = optimize_MAPE_poly(X_poly_manual, y_violent, beta_0_violent_poly, lambda_ridge_poly, I_poly)
-beta_1_nonviolent_poly = optimize_MAPE_poly(X_poly_manual, y_nonviolent, beta_0_nonviolent_poly, lambda_ridge_poly, I_poly)
-
-# Predict and exponentiate
-yviolent_prediction_poly = np.exp(X_poly_manual @ beta_1_violent_poly)
-ynonviolent_prediction_poly = np.exp(X_poly_manual @ beta_1_nonviolent_poly)
-
-# Compute MAPE
-MAPE_violent_poly = np.mean(np.abs((y_violent - yviolent_prediction_poly) / y_violent)) * 100
-MAPE_nonviolent_poly = np.mean(np.abs((y_nonviolent - ynonviolent_prediction_poly) / y_nonviolent)) * 100
-
-print('\n3rd Degree Polynomial SVD Ridge + MAPE Optimization (manual, no sklearn):')
-print('Violent Crime:')
-print(f'MAPE: {MAPE_violent_poly:.4f}%')
-print('Non-Violent Crime:')
-print(f'MAPE: {MAPE_nonviolent_poly:.4f}%')
-
-# --- Clamp helper to avoid exp overflow ---
-def safe_exp(x, max_exp=700):
-    return np.exp(np.clip(x, -max_exp, max_exp))
-
-# --- Prepare test data (use same selected columns and normalization as training) ---
-testing_data = scio.loadmat("./proj1files/testingdata.mat")
-testing_data = testing_data["testingdata"]
-X_test_matlab = testing_data[:, selected_columns]
-X_test_matlab = (X_test_matlab - np.mean(X_matlab[:, 1:], axis=0)) / (np.std(X_matlab[:, 1:], axis=0) + 1e-8)
-X_test_matlab = np.hstack([np.ones((X_test_matlab.shape[0], 1)), X_test_matlab])
-y_violent_test = testing_data[:, 79]
-y_nonviolent_test = testing_data[:, 80]
-
-# --- Linear (original) ---
-yviolent_prediction_test = safe_exp(X_test_matlab @ beta_1_violent)
-ynonviolent_prediction_test = safe_exp(X_test_matlab @ beta_1_nonviolent)
-MAPE_violent_test = np.mean(np.abs((y_violent_test - yviolent_prediction_test) / y_violent_test)) * 100
-MAPE_nonviolent_test = np.mean(np.abs((y_nonviolent_test - ynonviolent_prediction_test) / y_nonviolent_test)) * 100
-print('\nMATLAB SVD Ridge + MAPE Optimization (Python version) [TEST]:')
-print('Violent Crime:')
-print(f'MAPE: {MAPE_violent_test:.4f}%')
-print('Non-Violent Crime:')
-print(f'MAPE: {MAPE_nonviolent_test:.4f}%')
-
-# --- 3rd Degree Polynomial ---
-def make_poly_features_manual_test(X, degree=3):
-    n, d = X.shape
-    
-    features = [np.ones((n, 1))]
-    for deg in range(1, degree + 1):
-        features.append(X ** deg)
-    return np.hstack(features)  
-
-X_test_poly_manual = make_poly_features_manual_test(X_test_matlab[:, 1:], degree=3)
-
-yviolent_prediction_poly_test = safe_exp(X_test_poly_manual @ beta_1_violent_poly)
-ynonviolent_prediction_poly_test = safe_exp(X_test_poly_manual @ beta_1_nonviolent_poly)
-MAPE_violent_poly_test = np.mean(np.abs((y_violent_test - yviolent_prediction_poly_test) / y_violent_test)) * 100
-MAPE_nonviolent_poly_test = np.mean(np.abs((y_nonviolent_test - ynonviolent_prediction_poly_test) / y_nonviolent_test)) * 100
-print('\n3rd Degree Polynomial SVD Ridge + MAPE Optimization (manual, no sklearn) [TEST]:')
-print('Violent Crime:')
-print(f'MAPE: {MAPE_violent_poly_test:.4f}%')
-print('Non-Violent Crime:')
-print(f'MAPE: {MAPE_nonviolent_poly_test:.4f}%')
