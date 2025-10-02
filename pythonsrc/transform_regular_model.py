@@ -338,7 +338,7 @@ def ridge_regression(X, y, lmbda):
     return beta_ridge
 
 # Set regularization strength (lambda)
-lmbda = 1e-4  # Set to 1e-4 as requested
+lmbda = 1e-4
 
 # Violent
 beta_hat_v_ridge = ridge_regression(X_final, Y_violent, lmbda)
@@ -522,7 +522,7 @@ print(f"Non Violent Crime Test MAPE (log fit on y) lad: {mape_nv_test_exp_lad:.2
 
 
 
-#4th Degree Polynomial Regression
+#3rd Degree Polynomial Regression
 def make_poly_features(X, degree=4):
     # Only powers of each feature, no cross-terms
     X_poly = [np.ones(X.shape[0])]
@@ -742,7 +742,7 @@ print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_poly_lad:.2f}")
 
 
 
-# --- LAD with Ridge Regularization (Elastic LAD, manual IRLS+L2) ---
+# --- LAD with Ridge Regularization
 def lad_ridge_regression(X, y, lmbda=1.0, num_iters=100, tol=1e-4):
     n, d = X.shape
     w = np.linalg.lstsq(X, y, rcond=None)[0]  # initialize with least squares
@@ -1024,7 +1024,7 @@ print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_response_lasso:.2f}
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_response_lasso:.2f}")
 
 
-#We try SVD with ridge LAD regularization on all features
+#We try SVD with ridge LAD regularization
 lmbda_svd=1e-4
 U, S, VT = np.linalg.svd(X_final, full_matrices=False)
 X_svd = U @ np.diag(S)
@@ -1145,63 +1145,3 @@ print(f"Violent Crime MAPE (log fit train): {mape_v_exp_svd_poly_ridge:.2f}")
 print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_svd_poly_ridge:.2f}")
 print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_svd_poly_ridge:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_svd_poly_ridge:.2f}")
-
-
-# --- MATLAB SVD Ridge Regression with MAPE Optimization (Python version) ---
-# Select columns (MATLAB is 1-based, Python is 0-based)
-selected_columns = [0, 1, 2, 3, 4, 5, 6, 7, 9, 11, 12, 13, 14, 15, 17, 18, 22, 23, 24, 25, 26,
-                   28, 29, 31, 32, 33, 34, 35, 36, 38, 39, 42, 43, 47, 50, 51, 52, 56,
-                   62, 66, 67, 68, 69, 70, 72, 74, 75, 76, 77]
-
-X_matlab = training_data[:, selected_columns]
-y_violent = training_data[:, 79]
-y_nonviolent = training_data[:, 80]
-
-# Normalize X (zero mean, unit variance)
-X_matlab = (X_matlab - np.mean(X_matlab, axis=0)) / (np.std(X_matlab, axis=0) + 1e-8)
-
-# Add intercept
-X_matlab = np.hstack([np.ones((X_matlab.shape[0], 1)), X_matlab])
-
-# Ridge regularization parameter
-lambda_ridge = 1.0
-
-# Identity matrix, do not regularize intercept
-I = np.eye(X_matlab.shape[1])
-I[0, 0] = 0
-
-# SVD decomposition
-U, S, Vt = np.linalg.svd(X_matlab, full_matrices=False)
-V = Vt.T
-S_inv_ridge = S / (S**2 + lambda_ridge)
-S_inv_matrix = np.diag(S_inv_ridge)
-
-# Ridge solution for log(y)
-beta_0_violent = V @ S_inv_matrix @ U.T @ np.log(y_violent)
-beta_0_nonviolent = V @ S_inv_matrix @ U.T @ np.log(y_nonviolent)
-
-def optimize_MAPE(X, y, beta_init, lambda_ridge, I):
-    def loss_func(beta):
-        y_pred = np.exp(X @ beta)
-        mape = np.mean(np.abs((y - y_pred) / y))
-        penalty = lambda_ridge * np.linalg.norm(I @ beta) ** 2
-        return mape + penalty
-    res = opt.minimize(loss_func, beta_init, method='L-BFGS-B', options={'maxiter': 1000, 'ftol': 1e-6})
-    return res.x
-
-beta_1_violent = optimize_MAPE(X_matlab, y_violent, beta_0_violent, lambda_ridge, I)
-beta_1_nonviolent = optimize_MAPE(X_matlab, y_nonviolent, beta_0_nonviolent, lambda_ridge, I)
-
-# Predict and exponentiate
-yviolent_prediction = np.exp(X_matlab @ beta_1_violent)
-ynonviolent_prediction = np.exp(X_matlab @ beta_1_nonviolent)
-
-# Compute MAPE
-MAPE_violent = np.mean(np.abs((y_violent - yviolent_prediction) / y_violent)) * 100
-MAPE_nonviolent = np.mean(np.abs((y_nonviolent - ynonviolent_prediction) / y_nonviolent)) * 100
-
-print('\nMATLAB SVD Ridge + MAPE Optimization (log version):')
-print('Violent Crime:')
-print(f'MAPE: {MAPE_violent:.4f}%')
-print('Non-Violent Crime:')
-print(f'MAPE: {MAPE_nonviolent:.4f}%')
