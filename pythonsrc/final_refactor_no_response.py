@@ -1,15 +1,3 @@
-# Scatter plots of percent error for Naiive (Linear) and Poly3 Lasso Log models
-def scatter_percent_error(y_true, y_pred, title):
-    percent_error = 100 * (y_true - y_pred) / (y_true + 1e-8)
-    plt.figure(figsize=(8, 6))
-    sns.scatterplot(x=y_true, y=percent_error)
-    plt.axhline(0, color='r', linestyle='--')
-    plt.xlabel('True Values')
-    plt.ylabel('Percent Error (%)')
-    plt.title(title)
-    plt.grid(True)
-    plt.show()
-    plt.close()
 import scipy.io as scio
 import numpy as np
 import matplotlib.pyplot as plt
@@ -461,6 +449,18 @@ def plot_errors(y_true, y_pred, title):
     plt.grid(True)
     plt.show()
     plt.close()
+# Scatter plots of percent error for Naiive (Linear) and Poly3 Lasso Log models
+def scatter_percent_error(y_true, y_pred, title):
+    percent_error = 100 * (y_true - y_pred) / (y_true + 1e-8)
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=y_true, y=percent_error)
+    plt.axhline(0, color='r', linestyle='--')
+    plt.xlabel('True Values')
+    plt.ylabel('Percent Error (%)')
+    plt.title(title)
+    plt.grid(True)
+    plt.show()
+    plt.close()
 
 # Example plots
 plot_errors(Y_violent, X_final @ np.linalg.lstsq(X_final, Y_violent, rcond=None)[0], "Linear Regression Violent Crime")
@@ -499,7 +499,7 @@ def plot_qq_errors(y_true, y_pred, title):
     plt.close()
 
 
-# Scatter plots of the error for Naiive (Linear) and Poly3 Lasso Log models
+
 def scatter_error(y_true, y_pred, title):
     errors = y_true - y_pred
     plt.figure(figsize=(8, 6))
