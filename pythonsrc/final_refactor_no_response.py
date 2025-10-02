@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from os import makedirs, path
+import scipy.stats as stats
 
 # --- Preprocessing ---
 def normalize_feature(x, y):
@@ -35,7 +36,7 @@ def drop_high_kurtosis_features(X, kurtosis_vector, threshold=10):
 def mape(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
-# --- Data Loading ---
+# load mat, also it's weird and a dict for some reason? maybe that's how .mat is.
 training_data = scio.loadmat("./proj1files/trainingdata.mat")["trainingdata"]
 X_train = training_data[:, 0:78]
 Y_violent = training_data[:, 79]
@@ -49,7 +50,7 @@ kurtosis_vector = compute_kurtosis(X_dropped_normalized)
 X_final, final_kept_indices = drop_high_kurtosis_features(X_dropped_normalized, kurtosis_vector, threshold=10)
 X_final = np.insert(X_final, 0, np.ones((X_final.shape[0],)), axis=1)  # add intercept
 
-# --- Test Data ---
+#Test Data
 testing_data = scio.loadmat("./proj1files/testingdata.mat")["testingdata"]
 X_test = normalize_feature(testing_data[:, 0:78], X_train)
 Y_violent_test = testing_data[:, 79]
@@ -144,25 +145,25 @@ def stepwise_forward_selection(X, y, max_features=None, tol=1e-4):
     n, d = X.shape
     selected = [0]  # Always include intercept
     remaining = list(range(1, d))
-    prev_mse = np.inf
+    prev_mape = np.inf
     if max_features is None:
         max_features = d
     while len(selected) < max_features:
-        best_mse = np.inf
+        best_mape = np.inf
         best_j = None
         for j in remaining:
             cols = selected + [j]
             X_sub = X[:, cols]
             beta, *_ = np.linalg.lstsq(X_sub, y, rcond=None)
             y_pred = X_sub @ beta
-            mse = np.mean((y - y_pred) ** 2)
-            if mse < best_mse:
-                best_mse = mse
+            mape_value = mape(y, y_pred)
+            if mape_value < best_mape:
+                best_mape = mape_value
                 best_j = j
-        if best_j is not None and prev_mse - best_mse > tol:
+        if best_j is not None and prev_mape - best_mape > tol:
             selected.append(best_j)
             remaining.remove(best_j)
-            prev_mse = best_mse
+            prev_mape = best_mape
         else:
             break
     return selected
@@ -201,227 +202,133 @@ def evaluate_model(X_train, y_train, X_test, y_test, fit_func, fit_args=(), log_
             beta = beta[0]
         y_pred_train = X_train @ beta
         y_pred_test = X_test @ beta
-    return mape(y_train, y_pred_train), mape(y_test, y_pred_test)
+    return mape(y_train, y_pred_train), mape(y_test, y_pred_test), beta, y_pred_train, y_pred_test
 
 def print_results(name, mape_train, mape_test, log_fit=False):
     prefix = "Log " if log_fit else ""
     print(f"{name} {prefix}MAPE (train): {mape_train:.2f}")
     print(f"{name} {prefix}MAPE (test): {mape_test:.2f}")
 
-# --- Response Matrix Utilities ---
-def fit_linear(x, y):
-    A = np.vstack([x, np.ones_like(x)]).T
-    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
-    return lambda x_: coeffs[0] * x_ + coeffs[1]
-
-def fit_reciprocal(x, y):
-    x = np.clip(x, 1e-5, None)
-    A = np.vstack([1 / x, np.ones_like(x)]).T
-    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
-    return lambda x_: coeffs[0] / np.clip(x_, 1e-5, None) + coeffs[1]
-
-def fit_logarithmic(x, y):
-    x = np.clip(x, 1e-5, None)
-    A = np.vstack([np.log(x), np.ones_like(x)]).T
-    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
-    return lambda x_: coeffs[0] * np.log(np.clip(x_, 1e-5, None)) + coeffs[1]
-
-def fit_polynomial(x, y, degree):
-    A = np.vstack([x**d for d in range(degree, -1, -1)]).T
-    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
-    return lambda x_: sum(c * x_**d for c, d in zip(coeffs, range(degree, -1, -1)))
-
-def r_squared(y_true, y_pred):
-    ss_res = np.sum((y_true - y_pred) ** 2)
-    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
-    return 1 - ss_res / ss_tot
-
-def evaluate_fits(X_train, y, degree=4):
-    results = []
-    for i in range(X_train.shape[1]):
-        x = X_train[:, i]
-        # Linear
-        model = fit_linear(x, y)
-        r2 = r_squared(y, model(x))
-        results.append((i, "linear", r2))
-        # Reciprocal
-        model = fit_reciprocal(x, y)
-        r2 = r_squared(y, model(x))
-        results.append((i, "reciprocal", r2))
-        # Logarithmic
-        model = fit_logarithmic(x, y)
-        r2 = r_squared(y, model(x))
-        results.append((i, "logarithmic", r2))
-        # Polynomial
-        model = fit_polynomial(x, y, degree)
-        r2 = r_squared(y, model(x))
-        results.append((i, f"polynomial_deg{degree}", r2))
-    results.sort(key=lambda x: x[2], reverse=True)
-    return results
-
-def get_best_fit_per_feature(results):
-    best_fits = {}
-    for feature_idx, fit_type, r2 in results:
-        if feature_idx not in best_fits or r2 > best_fits[feature_idx][1]:
-            best_fits[feature_idx] = (fit_type, r2)
-    sorted_best = sorted(
-        [(idx, fit_type, r2) for idx, (fit_type, r2) in best_fits.items()],
-        key=lambda x: x[2],
-        reverse=True
-    )
-    return sorted_best
-
-def transform_feature(x, fit_type):
-    x = np.asarray(x)
-    if fit_type == "linear":
-        return x
-    elif fit_type == "reciprocal":
-        return 1.0 / np.clip(x, 1e-5, None)
-    elif fit_type == "logarithmic":
-        return np.log(np.clip(x, 1e-5, None))
-    elif fit_type.startswith("polynomial_deg"):
-        deg = int(fit_type.replace("polynomial_deg", ""))
-        return np.column_stack([x**d for d in range(deg, 0, -1)])
-    else:
-        raise ValueError(f"Unknown fit type: {fit_type}")
-
-def build_transformed_matrix(X, best_fits):
-    n_samples, n_features = X.shape
-    transformed_columns = []
-    for j in range(n_features):
-        xj = X[:, j]
-        if not np.isfinite(xj).all() or np.allclose(xj, xj[0]):
-            transformed_columns.append(np.zeros((n_samples, 1)))
-            continue
-        fit_type = next((fit for idx, fit, _ in best_fits if idx == j), "linear")
-        transformed = transform_feature(xj, fit_type)
-        if transformed.ndim == 1:
-            transformed = transformed.reshape(-1, 1)
-        transformed_columns.append(transformed)
-    response_matrix = np.hstack(transformed_columns)
-    return response_matrix
-
-
-# --- Run All Models ---
+#Run the models
 lmbda = 3e-7
 
-# Linear
-mape_v, mape_vt = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, np.linalg.lstsq)
-mape_nv, mape_nvt = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, np.linalg.lstsq)
+# 1) Linear
+mape_v, mape_vt, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, np.linalg.lstsq)
+mape_nv, mape_nvt, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, np.linalg.lstsq)
 print_results("Linear", mape_v, mape_vt)
 print_results("Linear", mape_nv, mape_nvt)
 
-# Linear Log
-mape_vl, mape_vtl = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, np.linalg.lstsq, log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, np.linalg.lstsq, log_fit=True)
+# 2) Linear Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, np.linalg.lstsq, log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, np.linalg.lstsq, log_fit=True)
 print_results("Linear", mape_vl, mape_vtl, log_fit=True)
 print_results("Linear", mape_nvl, mape_nvtl, log_fit=True)
 
-# Ridge
-mape_v, mape_vt = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, ridge_regression, (lmbda,))
-mape_nv, mape_nvt = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, ridge_regression, (lmbda,))
+# 3) Ridge
+mape_v, mape_vt, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, ridge_regression, (lmbda,))
+mape_nv, mape_nvt, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, ridge_regression, (lmbda,))
 print_results("Ridge", mape_v, mape_vt)
 print_results("Ridge", mape_nv, mape_nvt)
 
-# Ridge Log
-mape_vl, mape_vtl = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, ridge_regression, (lmbda,), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, ridge_regression, (lmbda,), log_fit=True)
+# 4) Ridge Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, ridge_regression, (lmbda,), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, ridge_regression, (lmbda,), log_fit=True)
 print_results("Ridge", mape_vl, mape_vtl, log_fit=True)
 print_results("Ridge", mape_nvl, mape_nvtl, log_fit=True)
 
-# Lasso
-mape_v, mape_vt = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lasso_coordinate_descent, (lmbda,))
-mape_nv, mape_nvt = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lasso_coordinate_descent, (lmbda,))
+# 5) Lasso
+mape_v, mape_vt, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lasso_coordinate_descent, (lmbda,))
+mape_nv, mape_nvt, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lasso_coordinate_descent, (lmbda,))
 print_results("Lasso", mape_v, mape_vt)
 print_results("Lasso", mape_nv, mape_nvt)
 
-# Lasso Log
-mape_vl, mape_vtl = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
+# 6) Lasso Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
 print_results("Lasso", mape_vl, mape_vtl, log_fit=True)
 print_results("Lasso", mape_nvl, mape_nvtl, log_fit=True)
 
-# LAD
-mape_v, mape_vt = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lad_regression)
-mape_nv, mape_nvt = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lad_regression)
+# 7) LAD
+mape_v, mape_vt, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lad_regression)
+mape_nv, mape_nvt, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lad_regression)
 print_results("LAD", mape_v, mape_vt)
 print_results("LAD", mape_nv, mape_nvt)
 
-# LAD Log
-mape_vl, mape_vtl = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lad_regression, (), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lad_regression, (), log_fit=True)
+# 8) LAD Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final, Y_violent, X_test_final, Y_violent_test, lad_regression, (), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final, Y_non_violent, X_test_final, Y_non_violent_test, lad_regression, (), log_fit=True)
 print_results("LAD", mape_vl, mape_vtl, log_fit=True)
 print_results("LAD", mape_nvl, mape_nvtl, log_fit=True)
 
-# Polynomial
-mape_v, mape_vt = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, np.linalg.lstsq)
-mape_nv, mape_nvt = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, np.linalg.lstsq)
+# 9) Polynomial
+mape_v, mape_vt, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, np.linalg.lstsq)
+mape_nv, mape_nvt, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, np.linalg.lstsq)
 print_results("Poly3", mape_v, mape_vt)
 print_results("Poly3", mape_nv, mape_nvt)
 
-# Polynomial Log
-mape_vl, mape_vtl = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, np.linalg.lstsq, log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, np.linalg.lstsq, log_fit=True)
+# 10) Polynomial Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, np.linalg.lstsq, log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, np.linalg.lstsq, log_fit=True)
 print_results("Poly3", mape_vl, mape_vtl, log_fit=True)
 print_results("Poly3", mape_nvl, mape_nvtl, log_fit=True)
 
-# Poly Lasso
-mape_v, mape_vt = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lasso_coordinate_descent, (lmbda,))
-mape_nv, mape_nvt = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lasso_coordinate_descent, (lmbda,))
+# 11) Poly Lasso
+mape_v, mape_vt, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lasso_coordinate_descent, (lmbda,))
+mape_nv, mape_nvt, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lasso_coordinate_descent, (lmbda,))
 print_results("Poly3 Lasso", mape_v, mape_vt)
 print_results("Poly3 Lasso", mape_nv, mape_nvt)
 
-# Poly Lasso Log
-mape_vl, mape_vtl = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
+# 12) Poly Lasso Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lasso_coordinate_descent, (lmbda,), log_fit=True)
 print_results("Poly3 Lasso", mape_vl, mape_vtl, log_fit=True)
 print_results("Poly3 Lasso", mape_nvl, mape_nvtl, log_fit=True)
 
-# Poly LAD
-mape_v, mape_vt = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_regression)
-mape_nv, mape_nvt = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_regression)
+# 13) Poly LAD
+mape_v, mape_vt, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_regression)
+mape_nv, mape_nvt, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_regression)
 print_results("Poly3 LAD", mape_v, mape_vt)
 print_results("Poly3 LAD", mape_nv, mape_nvt)
 
-# Poly LAD Log
-mape_vl, mape_vtl = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_regression, (), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_regression, (), log_fit=True)
+# 14) Poly LAD Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_regression, (), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_regression, (), log_fit=True)
 print_results("Poly3 LAD", mape_vl, mape_vtl, log_fit=True)
 print_results("Poly3 LAD", mape_nvl, mape_nvtl, log_fit=True)
 
-# Poly LAD Ridge
-mape_v, mape_vt = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_ridge_regression, (lmbda,))
-mape_nv, mape_nvt = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_ridge_regression, (lmbda,))
+# 15) Poly LAD Ridge
+mape_v, mape_vt, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_ridge_regression, (lmbda,))
+mape_nv, mape_nvt, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_ridge_regression, (lmbda,))
 print_results("Poly3 LAD Ridge", mape_v, mape_vt)
 print_results("Poly3 LAD Ridge", mape_nv, mape_nvt)
 
-# Poly LAD Ridge Log
-mape_vl, mape_vtl = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_ridge_regression, (lmbda,), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_ridge_regression, (lmbda,), log_fit=True)
+# 16) Poly LAD Ridge Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_final_poly, Y_violent, X_test_final_poly, Y_violent_test, lad_ridge_regression, (lmbda,), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_final_poly, Y_non_violent, X_test_final_poly, Y_non_violent_test, lad_ridge_regression, (lmbda,), log_fit=True)
 print_results("Poly3 LAD Ridge", mape_vl, mape_vtl, log_fit=True)
 print_results("Poly3 LAD Ridge", mape_nvl, mape_nvtl, log_fit=True)
 
-# SVD Ridge
-mape_v, mape_vt = evaluate_model(X_svd, Y_violent, X_test_svd, Y_violent_test, ridge_regression_safe, (lmbda,))
-mape_nv, mape_nvt = evaluate_model(X_svd, Y_non_violent, X_test_svd, Y_non_violent_test, ridge_regression_safe, (lmbda,))
+# 17) SVD Ridge
+mape_v, mape_vt, *_ = evaluate_model(X_svd, Y_violent, X_test_svd, Y_violent_test, ridge_regression_safe, (lmbda,))
+mape_nv, mape_nvt, *_ = evaluate_model(X_svd, Y_non_violent, X_test_svd, Y_non_violent_test, ridge_regression_safe, (lmbda,))
 print_results("SVD Ridge", mape_v, mape_vt)
 print_results("SVD Ridge", mape_nv, mape_nvt)
 
-# SVD Ridge Log
-mape_vl, mape_vtl = evaluate_model(X_svd, Y_violent, X_test_svd, Y_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_svd, Y_non_violent, X_test_svd, Y_non_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
+# 18) SVD Ridge Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_svd, Y_violent, X_test_svd, Y_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_svd, Y_non_violent, X_test_svd, Y_non_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
 print_results("SVD Ridge", mape_vl, mape_vtl, log_fit=True)
 print_results("SVD Ridge", mape_nvl, mape_nvtl, log_fit=True)
 
-# SVD Poly Ridge
-mape_v, mape_vt = evaluate_model(X_svd_poly, Y_violent, X_test_svd_poly, Y_violent_test, ridge_regression_safe, (lmbda,))
-mape_nv, mape_nvt = evaluate_model(X_svd_poly, Y_non_violent, X_test_svd_poly, Y_non_violent_test, ridge_regression_safe, (lmbda,))
+# 19) SVD Poly Ridge
+mape_v, mape_vt, *_ = evaluate_model(X_svd_poly, Y_violent, X_test_svd_poly, Y_violent_test, ridge_regression_safe, (lmbda,))
+mape_nv, mape_nvt, *_ = evaluate_model(X_svd_poly, Y_non_violent, X_test_svd_poly, Y_non_violent_test, ridge_regression_safe, (lmbda,))
 print_results("SVD Poly Ridge", mape_v, mape_vt)
 print_results("SVD Poly Ridge", mape_nv, mape_nvt)
 
-# SVD Poly Ridge Log
-mape_vl, mape_vtl = evaluate_model(X_svd_poly, Y_violent, X_test_svd_poly, Y_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
-mape_nvl, mape_nvtl = evaluate_model(X_svd_poly, Y_non_violent, X_test_svd_poly, Y_non_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
+# 20) SVD Poly Ridge Log
+mape_vl, mape_vtl, *_ = evaluate_model(X_svd_poly, Y_violent, X_test_svd_poly, Y_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
+mape_nvl, mape_nvtl, *_ = evaluate_model(X_svd_poly, Y_non_violent, X_test_svd_poly, Y_non_violent_test, ridge_regression_safe, (lmbda,), log_fit=True)
 print_results("SVD Poly Ridge", mape_vl, mape_vtl, log_fit=True)
 print_results("SVD Poly Ridge", mape_nvl, mape_nvtl, log_fit=True)
 
@@ -482,3 +389,102 @@ print(f"Violent Crime MAPE (log fit test): {mape_v_test_exp_step:.2f}")
 print(f"Non Violent Crime (log fit): selected features = {selected_nv_log}")
 print(f"Non Violent Crime MAPE (log fit train): {mape_nv_exp_step:.2f}")
 print(f"Non Violent Crime MAPE (log fit test): {mape_nv_test_exp_step:.2f}")
+
+#Perform stepwise forward selection with all normalized features
+normalize_all_features = normalize_feature(X_train, X_train)
+selected_all_features_v = stepwise_forward_selection(normalize_all_features, Y_violent, max_features=normalize_all_features.shape[1])
+selected_all_features_nv = stepwise_forward_selection(normalize_all_features, Y_non_violent, max_features=normalize_all_features.shape[1])
+
+# Violent Crime
+X_v_all_step = normalize_all_features[:, selected_all_features_v]
+beta_hat_v_all_step, *_ = np.linalg.lstsq(X_v_all_step, Y_violent, rcond=None)
+Y_violent_pred_all_step = X_v_all_step @ beta_hat_v_all_step
+mape_v_all_step = mape(Y_violent, Y_violent_pred_all_step)
+
+# Non-Violent Crime
+X_nv_all_step = normalize_all_features[:, selected_all_features_nv]
+beta_hat_nv_all_step, *_ = np.linalg.lstsq(X_nv_all_step, Y_non_violent, rcond=None)
+Y_non_violent_pred_all_step = X_nv_all_step @ beta_hat_nv_all_step
+mape_nv_all_step = mape(Y_non_violent, Y_non_violent_pred_all_step)
+
+print("\nStepwise Linear Regression (All Features, Normalized) Results:")
+print(f"Violent Crime: selected features = {selected_all_features_v}")
+print(f"Violent Crime MAPE (train): {mape_v_all_step:.2f}")
+print(f"Non Violent Crime: selected features = {selected_all_features_nv}")
+print(f"Non Violent Crime MAPE (train): {mape_nv_all_step:.2f}")
+
+# Perform stepwise forward selection with all normalized features (log fit)
+selected_all_features_v_log = stepwise_forward_selection(normalize_all_features, Y_violent_log, max_features=normalize_all_features.shape[1])
+selected_all_features_nv_log = stepwise_forward_selection(normalize_all_features, Y_non_violent_log, max_features=normalize_all_features.shape[1])
+
+# Violent Crime (log fit)
+X_v_all_step_log = normalize_all_features[:, selected_all_features_v_log]
+beta_hat_v_all_step_log, *_ = np.linalg.lstsq(X_v_all_step_log, Y_violent_log, rcond=None)
+Y_violent_pred_all_step_log = np.exp(X_v_all_step_log @ beta_hat_v_all_step_log)
+mape_v_all_step_log = mape(Y_violent, Y_violent_pred_all_step_log)
+
+# Non-Violent Crime (log fit)
+X_nv_all_step_log = normalize_all_features[:, selected_all_features_nv_log]
+beta_hat_nv_all_step_log, *_ = np.linalg.lstsq(X_nv_all_step_log, Y_non_violent_log, rcond=None)
+Y_non_violent_pred_all_step_log = np.exp(X_nv_all_step_log @ beta_hat_nv_all_step_log)
+mape_nv_all_step_log = mape(Y_non_violent, Y_non_violent_pred_all_step_log)
+
+print("\nStepwise Linear Regression (All Features, Normalized, Log Fit) Results:")
+print(f"Violent Crime (log fit): selected features = {selected_all_features_v_log}")
+print(f"Violent Crime MAPE (log fit train): {mape_v_all_step_log:.2f}")
+print(f"Non Violent Crime (log fit): selected features = {selected_all_features_nv_log}")
+print(f"Non Violent Crime MAPE (log fit train): {mape_nv_all_step_log:.2f}")
+
+#Plot the errors
+def plot_errors(y_true, y_pred, title):
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=y_true, y=y_pred)
+    plt.plot([y_true.min(), y_true.max()], [y_true.min(), y_true.max()], 'r--')
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title(title)
+    plt.grid(True)
+    #plt.show()
+    #plt.close()
+
+# Example plots
+plot_errors(Y_violent, X_final @ np.linalg.lstsq(X_final, Y_violent, rcond=None)[0], "Linear Regression Violent Crime")
+plot_errors(Y_non_violent, X_final @ np.linalg.lstsq(X_final, Y_non_violent, rcond=None)[0], "Linear Regression Non-Violent Crime")
+plot_errors(Y_violent, np.exp(X_final @ np.linalg.lstsq(X_final, Y_violent_log, rcond=None)[0]), "Log Linear Regression Violent Crime")
+plot_errors(Y_non_violent, np.exp(X_final @ np.linalg.lstsq(X_final, Y_non_violent_log, rcond=None)[0]), "Log Linear Regression Non-Violent Crime")
+
+
+#Histograms of errors
+def plot_error_histogram(y_true, y_pred, title):
+    errors = y_true - y_pred
+    plt.figure(figsize=(8, 6))
+    sns.histplot(errors, kde=True, bins=30, color='blue')
+    plt.xlabel('Error')
+    plt.ylabel('Frequency')
+    plt.title(f"Error Histogram: {title}")
+    plt.grid(True)
+    #plt.show()
+    #plt.close()
+
+# Example histograms
+plot_error_histogram(Y_violent, X_final @ np.linalg.lstsq(X_final, Y_violent, rcond=None)[0], "Linear Regression Violent Crime")
+plot_error_histogram(Y_non_violent, X_final @ np.linalg.lstsq(X_final, Y_non_violent, rcond=None)[0], "Linear Regression Non-Violent Crime")
+plot_error_histogram(Y_violent, np.exp(X_final @ np.linalg.lstsq(X_final, Y_violent_log, rcond=None)[0]), "Log Linear Regression Violent Crime")
+plot_error_histogram(Y_non_violent, np.exp(X_final @ np.linalg.lstsq(X_final, Y_non_violent_log, rcond=None)[0]), "Log Linear Regression Non-Violent Crime")
+
+
+#Q-Q plots of errors
+def plot_qq_errors(y_true, y_pred, title):
+    errors = y_true - y_pred
+    plt.figure(figsize=(8, 6))
+    stats.probplot(errors, dist="norm", plot=plt)
+    plt.title(f"Q-Q Plot: {title}")
+    plt.grid(True)
+    #plt.show()
+    #plt.close()
+
+#Q-Q plots for the best models
+plot_qq_errors(Y_violent, X_final @ np.linalg.lstsq(X_final, Y_violent, rcond=None)[0], "Linear Regression Violent Crime")
+plot_qq_errors(Y_non_violent, X_final @ np.linalg.lstsq(X_final, Y_non_violent, rcond=None)[0], "Linear Regression Non-Violent Crime")
+plot_qq_errors(Y_violent, np.exp(X_final @ np.linalg.lstsq(X_final, Y_violent_log, rcond=None)[0]), "Log Linear Regression Violent Crime")
+plot_qq_errors(Y_non_violent, np.exp(X_final @ np.linalg.lstsq(X_final, Y_non_violent_log, rcond=None)[0]), "Log Linear Regression Non-Violent Crime")
