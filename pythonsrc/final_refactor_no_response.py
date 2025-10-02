@@ -1,3 +1,15 @@
+# Scatter plots of percent error for Naiive (Linear) and Poly3 Lasso Log models
+def scatter_percent_error(y_true, y_pred, title):
+    percent_error = 100 * (y_true - y_pred) / (y_true + 1e-8)
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=y_true, y=percent_error)
+    plt.axhline(0, color='r', linestyle='--')
+    plt.xlabel('True Values')
+    plt.ylabel('Percent Error (%)')
+    plt.title(title)
+    plt.grid(True)
+    plt.show()
+    plt.close()
 import scipy.io as scio
 import numpy as np
 import matplotlib.pyplot as plt
@@ -500,22 +512,27 @@ def scatter_error(y_true, y_pred, title):
     plt.show()
     plt.close()
 
+
 # Naiive (Linear) model
 beta_linear = np.linalg.lstsq(X_final, Y_violent, rcond=None)[0]
 y_pred_linear = X_final @ beta_linear
 scatter_error(Y_violent, y_pred_linear, "Error Scatter: Naiive Linear Violent Crime")
+scatter_percent_error(Y_violent, y_pred_linear, "Percent Error Scatter: Naiive Linear Violent Crime")
 #log model
 beta_log = np.linalg.lstsq(X_final, Y_violent_log, rcond=None)[0]
 y_pred_log = np.exp(X_final @ beta_log)
 scatter_error(Y_violent, y_pred_log, "Error Scatter: Log Linear Violent Crime")
+scatter_percent_error(Y_violent, y_pred_log, "Percent Error Scatter: Log Linear Violent Crime")
 #non-violent log
 beta_nv_log = np.linalg.lstsq(X_final, Y_non_violent_log, rcond=None)[0]
 y_pred_nv_log = np.exp(X_final @ beta_nv_log)
 scatter_error(Y_non_violent, y_pred_nv_log, "Error Scatter: Log Linear Non-Violent Crime")
+scatter_percent_error(Y_non_violent, y_pred_nv_log, "Percent Error Scatter: Log Linear Non-Violent Crime")
 # Poly3 Lasso Log model
 beta_poly3_lasso_log = lasso_coordinate_descent(X_final_poly, np.log(np.clip(Y_violent, 1e-5, None)), lmbda)
 y_pred_poly3_lasso_log = np.exp(X_final_poly @ beta_poly3_lasso_log)
 scatter_error(Y_violent, y_pred_poly3_lasso_log, "Error Scatter: Poly3 Lasso Log Violent Crime")
+scatter_percent_error(Y_violent, y_pred_poly3_lasso_log, "Percent Error Scatter: Poly3 Lasso Log Violent Crime")
 
 
 #Q-Q plots for the best models
