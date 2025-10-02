@@ -28,7 +28,7 @@ def compute_kurtosis(X):
     std = np.std(X, axis=0)
     return np.sum(((X - mean) / (std + 1e-8))**4, axis=0) / n - 3
 
-def drop_high_kurtosis_features(X, kurtosis_vector, threshold=10):
+def drop_high_kurtosis_features(X, kurtosis_vector, threshold=10.0):
     to_drop = [i for i, k in enumerate(kurtosis_vector) if abs(k) > threshold]
     keep_indices = [i for i in range(X.shape[1]) if i not in to_drop]
     return X[:, keep_indices], keep_indices
@@ -209,6 +209,9 @@ def print_results(name, mape_train, mape_test, log_fit=False):
     print(f"{name} {prefix}MAPE (train): {mape_train:.2f}")
     print(f"{name} {prefix}MAPE (test): {mape_test:.2f}")
 
+print(f"Initial shape: {X_train.shape}")
+print(f"Shape after dropping highly correlated features: {X_dropped_normalized.shape}")
+print(f"Final shape after dropping high kurtosis features (with intercept): {X_final.shape}")
 #Run the models
 lmbda = 3e-7
 
@@ -444,8 +447,8 @@ def plot_errors(y_true, y_pred, title):
     plt.ylabel('Predicted Values')
     plt.title(title)
     plt.grid(True)
-    #plt.show()
-    #plt.close()
+    plt.show()
+    plt.close()
 
 # Example plots
 plot_errors(Y_violent, X_final @ np.linalg.lstsq(X_final, Y_violent, rcond=None)[0], "Linear Regression Violent Crime")
@@ -463,8 +466,8 @@ def plot_error_histogram(y_true, y_pred, title):
     plt.ylabel('Frequency')
     plt.title(f"Error Histogram: {title}")
     plt.grid(True)
-    #plt.show()
-    #plt.close()
+    plt.show()
+    plt.close()
 
 # Example histograms
 plot_error_histogram(Y_violent, X_final @ np.linalg.lstsq(X_final, Y_violent, rcond=None)[0], "Linear Regression Violent Crime")
@@ -480,8 +483,40 @@ def plot_qq_errors(y_true, y_pred, title):
     stats.probplot(errors, dist="norm", plot=plt)
     plt.title(f"Q-Q Plot: {title}")
     plt.grid(True)
-    #plt.show()
-    #plt.close()
+    plt.show()
+    plt.close()
+
+
+# Scatter plots of the error for Naiive (Linear) and Poly3 Lasso Log models
+def scatter_error(y_true, y_pred, title):
+    errors = y_true - y_pred
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=y_true, y=errors)
+    plt.axhline(0, color='r', linestyle='--')
+    plt.xlabel('True Values')
+    plt.ylabel('Error (True - Predicted)')
+    plt.title(title)
+    plt.grid(True)
+    plt.show()
+    plt.close()
+
+# Naiive (Linear) model
+beta_linear = np.linalg.lstsq(X_final, Y_violent, rcond=None)[0]
+y_pred_linear = X_final @ beta_linear
+scatter_error(Y_violent, y_pred_linear, "Error Scatter: Naiive Linear Violent Crime")
+#log model
+beta_log = np.linalg.lstsq(X_final, Y_violent_log, rcond=None)[0]
+y_pred_log = np.exp(X_final @ beta_log)
+scatter_error(Y_violent, y_pred_log, "Error Scatter: Log Linear Violent Crime")
+#non-violent log
+beta_nv_log = np.linalg.lstsq(X_final, Y_non_violent_log, rcond=None)[0]
+y_pred_nv_log = np.exp(X_final @ beta_nv_log)
+scatter_error(Y_non_violent, y_pred_nv_log, "Error Scatter: Log Linear Non-Violent Crime")
+# Poly3 Lasso Log model
+beta_poly3_lasso_log = lasso_coordinate_descent(X_final_poly, np.log(np.clip(Y_violent, 1e-5, None)), lmbda)
+y_pred_poly3_lasso_log = np.exp(X_final_poly @ beta_poly3_lasso_log)
+scatter_error(Y_violent, y_pred_poly3_lasso_log, "Error Scatter: Poly3 Lasso Log Violent Crime")
+
 
 #Q-Q plots for the best models
 plot_qq_errors(Y_violent, X_final @ np.linalg.lstsq(X_final, Y_violent, rcond=None)[0], "Linear Regression Violent Crime")
